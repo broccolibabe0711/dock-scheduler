@@ -1,0 +1,30 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+
+# --- Local data that is generated, not authored ---
+*.db
+*.sqlite
+*.sqlite3
+data/generated/
+
+# --- Node (only if a JS toolchain is ever added) ---
+node_modules/
+
+# --- macOS / editors ---
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# --- Secrets: never commit these ---
+.env
+.env.*

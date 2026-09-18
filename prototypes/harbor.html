@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Harbor View</title>
+<style>
+/* ---- Color tokens (dataviz reference palette). Light first, dark below. ----
+   Series colors identify vessel TYPE (categorical, fixed order). --critical is a
+   status color reserved for conflicts and is never used for a vessel type. */
+:root {
+  color-scheme: light;
+  --page: #f9f9f7;  --surface: #fcfcfb;  --ink: #0b0b0b;  --ink-2: #52514e;  --muted: #898781;
+  --hair: #e1e0d9;  --border: rgba(11, 11, 11, .10);
+  --water: #dde8f4; --land: #ece9df;  --pier: #cfcdc3;  --pier-edge: #898781;
+  --c-rv: #2a78d6;  --c-mv: #eb6834;  --c-fv: #1baf7a;  --c-sv: #eda100;
+  --c-barge: #e87ba4; --c-tug: #008300; --c-osv: #4a3aa7;
+  --critical: #d03b3b; --on-critical: #ffffff;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
+    --hair: #2c2c2a; --border: rgba(255, 255, 255, .10);
+    --water: #16263a; --land: #262622; --pier: #45443f; --pier-edge: #898781;
+    --c-rv: #3987e5; --c-mv: #d95926; --c-fv: #199e70; --c-sv: #c98500;
+    --c-barge: #d55181; --c-tug: #008300; --c-osv: #9085e9;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
+  --hair: #2c2c2a; --border: rgba(255, 255, 255, .10);
+  --water: #16263a; --land: #262622; --pier: #45443f; --pier-edge: #898781;
+  --c-rv: #3987e5; --c-mv: #d95926; --c-fv: #199e70; --c-sv: #c98500;
+  --c-barge: #d55181; --c-tug: #008300; --c-osv: #9085e9;
+}
+
+/* ---- Page layout: one column on phones, map + side panel on wide screens ---- */
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--ink);
+       font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 16px; }
+h1 { font-size: 19px; margin: 0 0 2px; }
+.sub { margin: 0 0 14px; color: var(--ink-2); font-size: 14px; }
+.layout { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 900px) {
+  .layout { grid-template-columns: minmax(0, 1fr) 320px; align-items: start; }
+  .panel { position: sticky; top: 16px; }
+}
+
+/* ---- Controls ---- */
+.controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.controls input[type="range"] { flex: 1 1 160px; min-width: 120px; accent-color: var(--c-rv); }
+button { font: inherit; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border);
+         background: var(--surface); color: var(--ink); cursor: pointer; }
+button:hover { border-color: var(--muted); }
+.date { font-weight: 600; min-width: 11ch; font-variant-numeric: tabular-nums; }
+
+/* ---- Map box. The SVG stretches to the box width; on very narrow screens the
+   box scrolls sideways so labels stay legible (the page itself never does). ---- */
+.map-wrap { position: relative; overflow-x: auto; border: 1px solid var(--border);
+            border-radius: 12px; background: var(--water); }
+#map { display: block; width: 100%; min-width: 540px; height: auto; }
+#map text { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+.land { fill: var(--land); }
+.pier { fill: var(--pier); stroke: var(--pier-edge); stroke-width: .8; }
+.lbl { fill: var(--ink-2); font-size: 10px; }
+.lbl.small { fill: var(--muted); font-size: 8.5px; }
+.compass line, .compass path, .scale line { stroke: var(--ink-2); stroke-width: 1.5; fill: none; }
+.hatch-bg { fill: var(--surface); }
+.hatch-event { stroke: var(--ink-2); stroke-width: 1.5; }
+.hatch-conflict { stroke: var(--critical); stroke-width: 2; }
+
+/* Berth faces: a fender line; a slip is an outlined box. Over capacity -> red pulse. */
+.berth-line { stroke: var(--pier-edge); stroke-width: 2.5; fill: none; }
+.berth-line.slip { stroke-width: 1.2; stroke-dasharray: 2 2; }
+.berth-line.over { stroke: var(--critical); stroke-width: 4; stroke-dasharray: none;
+                   animation: pulse 1.1s ease-in-out infinite; }
+@keyframes pulse { 50% { stroke-opacity: .25; } }
+
+/* Vessels: a <g> whose CSS transform is animated between "offshore" and "berthed". */
+.vessel { cursor: pointer; transition: transform .45s ease, opacity .45s ease; }
+.vessel.hidden { opacity: 0; pointer-events: none; }
+.vessel .body { stroke: var(--water); stroke-width: 1; }          /* 1-unit surface ring between packed hulls */
+.vessel:focus-visible { outline: none; }
+.vessel:focus-visible .body { stroke: var(--ink); stroke-width: 2; }
+.t-rv .body { fill: var(--c-rv); }   .t-mv .body { fill: var(--c-mv); }   .t-fv .body { fill: var(--c-fv); }
+.t-sv .body { fill: var(--c-sv); }   .t-barge .body { fill: var(--c-barge); }
+.t-tug .body { fill: var(--c-tug); } .t-osv .body { fill: var(--c-osv); }
+.event .body { fill: url(#hatchEvent); stroke: var(--muted); stroke-dasharray: 3 2; }
+.stripes { fill: url(#hatchConflict); display: none; }
+.vessel.over .stripes { display: block; }                          /* striped overlay = over-capacity berth */
+.name { font-size: 10px; font-weight: 600; fill: var(--ink); pointer-events: none;
+        paint-order: stroke; stroke: var(--water); stroke-width: 3px; stroke-linejoin: round; }
+.badge rect { fill: var(--critical); }
+.badge text { fill: var(--on-critical); font-size: 8.5px; font-weight: 700; }
+
+/* Click card, legend, side panel */
+.card { position: absolute; z-index: 2; max-width: 250px; padding: 10px 26px 10px 12px; font-size: 13.5px;
+        background: var(--surface); color: var(--ink); border: 1px solid var(--border);
+        border-radius: 10px; box-shadow: 0 6px 20px rgba(0, 0, 0, .18); }
+.card[hidden] { display: none; }
+.card .close { position: absolute; top: 2px; right: 4px; border: 0; background: none; padding: 2px 6px; }
+.card .meta { color: var(--ink-2); margin-top: 4px; }
+.scale-note { margin: 8px 0 0; font-size: 13px; color: var(--muted); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 8px 0 0; padding: 0; font-size: 13px;
+          color: var(--ink-2); list-style: none; }
+.legend li { display: flex; align-items: center; gap: 6px; }
+.sw { display: inline-block; width: 22px; height: 11px; border-radius: 6px 3px 3px 6px; }
+.sw.hatch { background: repeating-linear-gradient(45deg, var(--surface) 0 3px, var(--ink-2) 3px 4px); }
+.sw.stripe { background: repeating-linear-gradient(135deg, var(--c-rv) 0 3px, var(--critical) 3px 5px); }
+.sw.pill { width: auto; padding: 0 4px; border-radius: 3px; background: var(--critical);
+           color: var(--on-critical); font-size: 9px; font-weight: 700; line-height: 11px; }
+.panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; }
+.panel h2 { font-size: 13px; margin: 0 0 6px; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-2); }
+.panel ul { margin: 0 0 14px; padding: 0; list-style: none; }
+.conflict, .occ { display: flex; gap: 8px; padding: 6px 0; border-top: 1px solid var(--hair); font-size: 14px; }
+.ico { flex: none; width: 18px; height: 18px; border-radius: 50%; background: var(--critical);
+       color: var(--on-critical); font-size: 12px; font-weight: 800; text-align: center; line-height: 18px; }
+.ok { color: var(--ink-2); padding: 6px 0; border-top: 1px solid var(--hair); }
+.occ { font-size: 13px; color: var(--ink-2); display: block; }
+.occ b { color: var(--ink); font-weight: 600; }
+@media (prefers-reduced-motion: reduce) {
+  .vessel { transition: none; }
+  .berth-line.over { animation: none; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Harbor View</h1>
+  <p class="sub">Berth schedule drawn to scale. Scrub the timeline; anything red is a conflict.</p>
+  <div class="layout">
+    <section>
+      <div class="controls">
+        <button id="play" aria-pressed="false">&#9654; Play</button>
+        <input id="day" type="range" min="0" max="59" value="0" aria-label="Day of schedule">
+        <span id="date" class="date"></span>
+      </div>
+
+      <div id="mapWrap" class="map-wrap">
+        <!-- The viewBox is 600 x 560 FEET: every coordinate below is a distance in feet.
+             The browser stretches the drawing to fit, so all berths and hulls share one scale. -->
+        <svg id="map" viewBox="0 0 600 560" role="img" aria-labelledby="mapTitle">
+          <title id="mapTitle">Plan view of the waterfront berths</title>
+          <defs>
+            <pattern id="hatchEvent" patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)">
+              <rect class="hatch-bg" width="8" height="8"/><line class="hatch-event" x1="0" y1="0" x2="0" y2="8"/>
+            </pattern>
+            <pattern id="hatchConflict" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(135)">
+              <line class="hatch-conflict" x1="0" y1="0" x2="0" y2="6"/>
+            </pattern>
+          </defs>
+
+          <!-- Land: north shore, west shore, south shore -->
+          <g class="land">
+            <rect x="0" y="0" width="600" height="30"/>
+            <rect x="0" y="0" width="40" height="560"/>
+            <rect x="0" y="540" width="600" height="20"/>
+          </g>
+
+          <!-- Structures. North Pier: 75 ft wide, 410 ft long, running south from the shore.
+               Its west side is the 410' berth, its south end the 75' Face, and the southern
+               240' of its east side the East berth; the northern part carries the finger piers. -->
+          <g class="pier">
+            <rect x="150" y="30" width="75" height="410"/>
+            <rect x="225" y="45" width="40" height="4"/>
+            <rect x="225" y="81" width="40" height="4"/>
+            <rect x="225" y="117" width="40" height="4"/>
+            <rect x="225" y="153" width="40" height="4"/>
+            <rect x="225" y="189" width="40" height="4"/>
+            <rect x="300" y="500" width="90" height="10"/><rect x="340" y="510" width="6" height="30"/>
+            <rect x="420" y="500" width="90" height="10"/><rect x="460" y="510" width="6" height="30"/>
+          </g>
+
+          <!-- Berth labels -->
+          <text class="lbl small" x="300" y="19" text-anchor="middle">SHORE</text>
+          <text class="lbl" transform="translate(163 235) rotate(-90)" text-anchor="middle">North Pier West &#183; 410'</text>
+          <text class="lbl" transform="translate(214 320) rotate(-90)" text-anchor="middle">North Pier East &#183; 240'</text>
+          <text class="lbl small" x="187.5" y="418" text-anchor="middle">North Pier Face<tspan x="187.5" dy="10">75'</tspan></text>
+          <text class="lbl small" x="270" y="40">North Finger Piers &#183; 4 slips &#215; 36'</text>
+          <text class="lbl small" x="268" y="68">NF-1</text>
+          <text class="lbl small" x="268" y="104">NF-2</text>
+          <text class="lbl small" x="268" y="140">NF-3</text>
+          <text class="lbl small" x="268" y="176">NF-4</text>
+          <text class="lbl small" transform="translate(84 482) rotate(-90)" text-anchor="middle">Inner Channel &#183; 55'</text>
+          <text class="lbl small" x="345" y="553" text-anchor="middle">South Float West &#183; 90'</text>
+          <text class="lbl small" x="465" y="553" text-anchor="middle">South Float East &#183; 90'</text>
+
+          <!-- Scale bar (100 ft) and north arrow -->
+          <g class="scale" transform="translate(470 62)">
+            <line x1="0" y1="0" x2="100" y2="0"/><line x1="0" y1="-4" x2="0" y2="4"/><line x1="100" y1="-4" x2="100" y2="4"/>
+            <text class="lbl small" x="50" y="-7" text-anchor="middle">100 ft</text>
+          </g>
+          <g class="compass" transform="translate(575 100)">
+            <line x1="0" y1="0" x2="0" y2="-24"/><path d="M-4,-18 L0,-26 L4,-18"/>
+            <text class="lbl small" y="11" text-anchor="middle">N</text>
+          </g>
+
+          <!-- Dynamic layers, filled by the script -->
+          <g id="berthLines"></g>
+          <g id="bands"></g>
+          <g id="vessels"></g>
+        </svg>
+        <div id="card" class="card" hidden></div>
+      </div>
+
+      <p class="scale-note">Scale: 1 SVG unit = 1 ft, so 100 ft = <span id="pxPerFt">&#8230;</span> px at this window size.</p>
+      <ul class="legend" aria-label="Legend">
+        <li><span class="sw" style="background:var(--c-rv)"></span>R/V research</li>
+        <li><span class="sw" style="background:var(--c-mv)"></span>M/V motor</li>
+        <li><span class="sw" style="background:var(--c-fv)"></span>F/V fishing</li>
+        <li><span class="sw" style="background:var(--c-sv)"></span>S/V sail</li>
+        <li><span class="sw" style="background:var(--c-barge)"></span>Barge</li>
+        <li><span class="sw" style="background:var(--c-tug)"></span>Tug</li>
+        <li><span class="sw" style="background:var(--c-osv)"></span>OSV supply</li>
+        <li><span class="sw hatch"></span>Event (takes the whole berth)</li>
+        <li><span class="sw stripe"></span>Over-capacity berth</li>
+        <li><span class="sw pill">+NN ft</span>Longer than its berth</li>
+      </ul>
+    </section>
+
+    <aside class="panel">
+      <h2>Conflicts today (<span id="count">0</span>)</h2>
+      <ul id="conflicts"></ul>
+      <h2>Berthed today</h2>
+      <ul id="occupancy"></ul>
+    </aside>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* =====================================================================
+   1. SCALE
+   The SVG viewBox is 600 x 560 and we treat 1 unit = 1 foot. A 120 ft hull is a
+   120-unit path, a 75 ft face is a 75-unit line. The browser then scales the whole
+   picture to the page width, so pixels-per-foot changes with the window but every
+   shape shares it. updateScaleNote() prints the current value under the map.
+   ===================================================================== */
+const FENDER   = 2;    // ft between a hull and the berth face
+const PACK_GAP = 4;    // ft between hulls moored end-to-end (the capacity rule ignores it)
+const OFFSHORE = 80;   // ft: where a hull waits before arriving / after departing
+const BAND     = 14;   // ft: thickness of an event band
+const VIEW_W   = 600;  // viewBox width in feet, for the px-per-foot readout
+
+/* 2. BERTHS. Coordinates are feet on the map above.
+   start = where the first vessel's stern goes;  dir = unit vector along the face
+   (hulls are packed in this direction);  water = unit vector from the face into open
+   water (hulls sit on that side). A slip has water [0,0]: its hull sits on the slip's
+   centreline and enters or leaves through the open end, i.e. along dir. */
+const BERTHS = [
+  { id: 'NPW', name: 'North Pier West',     len: 410, kind: 'linear', start: [150, 30],  dir: [0, 1], water: [-1, 0] },
+  { id: 'NPF', name: 'North Pier Face',     len: 75,  kind: 'linear', start: [150, 440], dir: [1, 0], water: [0, 1] },
+  { id: 'NPE', name: 'North Pier East',     len: 240, kind: 'linear', start: [225, 200], dir: [0, 1], water: [1, 0] },
+  { id: 'IC',  name: 'Inner Channel',       len: 55,  kind: 'linear', start: [40, 455],  dir: [0, 1], water: [1, 0] },
+  { id: 'SFW', name: 'South Float West',    len: 90,  kind: 'linear', start: [300, 500], dir: [1, 0], water: [0, -1] },
+  { id: 'SFE', name: 'South Float East',    len: 90,  kind: 'linear', start: [420, 500], dir: [1, 0], water: [0, -1] },
+  { id: 'NF1', name: 'North Finger Pier 1', len: 36,  kind: 'slip',   start: [225, 65],  dir: [1, 0], water: [0, 0] },
+  { id: 'NF2', name: 'North Finger Pier 2', len: 36,  kind: 'slip',   start: [225, 101], dir: [1, 0], water: [0, 0] },
+  { id: 'NF3', name: 'North Finger Pier 3', len: 36,  kind: 'slip',   start: [225, 137], dir: [1, 0], water: [0, 0] },
+  { id: 'NF4', name: 'North Finger Pier 4', len: 36,  kind: 'slip',   start: [225, 173], dir: [1, 0], water: [0, 0] },
+];
+
+/* 3. SCHEDULE (60 days from 1 Sep 2026). Dates are END-INCLUSIVE: a stay from
+   09-10 to 09-18 occupies the berth on both of those days. An event has no length
+   of its own; it takes the whole berth. */
+const RESERVATIONS = [
+  { name: 'R/V Tidewatch',       len: 95,  berth: 'NPW', start: '2026-09-02', end: '2026-09-06' },
+  { name: 'Barge Bluewater',     len: 110, berth: 'NPE', start: '2026-09-03', end: '2026-09-09' },
+  { name: 'R/V Coral Warden',    len: 120, berth: 'NPF', start: '2026-09-05', end: '2026-09-09' }, // 120' on a 75' face
+  { name: 'S/V Windrose',        len: 33,  berth: 'NF1', start: '2026-09-01', end: '2026-09-30' },
+  { name: 'S/V Pelagic',         len: 30,  berth: 'NF4', start: '2026-09-03', end: '2026-09-09' },
+  { name: 'F/V Kestrel',         len: 72,  berth: 'SFW', start: '2026-09-08', end: '2026-09-14' },
+  { name: 'F/V Salt Runner',     len: 60,  berth: 'SFE', start: '2026-09-10', end: '2026-09-18' },
+  { name: 'M/V Sea Lark',        len: 48,  berth: 'IC',  start: '2026-09-12', end: '2026-09-16' },
+  { name: 'S/V Marlin',          len: 38,  berth: 'NF3', start: '2026-09-12', end: '2026-10-02' }, // 38' in a 36' slip
+  { name: 'F/V Morning Tide',    len: 55,  berth: 'SFE', start: '2026-09-15', end: '2026-09-22' }, // 60+55 > 90 with Salt Runner
+  { name: 'OSV Deep Anchor',     len: 210, berth: 'NPW', start: '2026-09-18', end: '2026-09-26' },
+  { name: 'OSV Meridian',        len: 160, berth: 'NPE', start: '2026-09-20', end: '2026-09-30' },
+  { name: 'Tug Osprey',          len: 85,  berth: 'NPW', start: '2026-09-20', end: '2026-09-24' },
+  { name: 'R/V Petrel',          len: 65,  berth: 'NPW', start: '2026-09-21', end: '2026-09-23' }, // 3 hulls on the 410' pier
+  { name: 'F/V Kestrel',         len: 72,  berth: 'NPF', start: '2026-09-24', end: '2026-09-27' },
+  { name: 'R/V Tidewatch',       len: 95,  berth: 'NPE', start: '2026-09-27', end: '2026-10-05' }, // 160+95 > 240 with Meridian
+  { name: 'M/V Sea Lark',        len: 48,  berth: 'SFW', start: '2026-10-01', end: '2026-10-06' },
+  { name: 'S/V Alouette',        len: 34,  berth: 'NF2', start: '2026-10-01', end: '2026-10-10' },
+  { name: 'Community sail day',  event: true, berth: 'SFW', start: '2026-10-03', end: '2026-10-04' }, // clashes with Sea Lark
+  { name: 'S/V Pelagic',         len: 30,  berth: 'NF2', start: '2026-10-08', end: '2026-10-12' }, // two boats, one slip
+  { name: 'M/V Harbor Star',     len: 140, berth: 'NPE', start: '2026-10-08', end: '2026-10-14' },
+  { name: "R/V Neptune's Reach", len: 200, berth: 'NPW', start: '2026-10-10', end: '2026-10-20' },
+  { name: 'Tug Grit',            len: 70,  berth: 'IC',  start: '2026-10-12', end: '2026-10-16' }, // 70' on a 55' quay
+  { name: 'S/V Windrose',        len: 33,  berth: 'NF1', start: '2026-10-14', end: '2026-10-30' },
+  { name: 'Barge Titan 4',       len: 180, berth: 'NPW', start: '2026-10-15', end: '2026-10-22' },
+  { name: 'Crane maintenance',   event: true, berth: 'NPF', start: '2026-10-18', end: '2026-10-21' },
+  { name: 'R/V Coral Warden',    len: 120, berth: 'SFE', start: '2026-10-20', end: '2026-10-26' }, // 120' on a 90' float
+  { name: 'Tug Osprey',          len: 85,  berth: 'SFW', start: '2026-10-24', end: '2026-10-28' },
+];
+const TYPE_NAMES = { rv: 'Research vessel', mv: 'Motor vessel', fv: 'Fishing vessel', sv: 'Sailing vessel',
+                     barge: 'Barge', tug: 'Tug', osv: 'Offshore supply vessel' };
+
+/* 4. SMALL HELPERS */
+const START = Date.UTC(2026, 8, 1);   // day 0 = 1 Sep 2026 (months are 0-based). UTC avoids DST slips.
+const DAYS  = 60;
+const $     = id => document.getElementById(id);
+const dayOf = iso => Math.round((Date.parse(iso + 'T00:00:00Z') - START) / 864e5);
+const fmtDate = d => new Date(START + d * 864e5)
+  .toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
+const berthById = id => BERTHS.find(b => b.id === id);
+const typeOf    = r => r.name.split(' ')[0].replace('/', '').toLowerCase();   // 'R/V Petrel' -> 'rv'
+const lengthOf  = (r, b) => r.event ? b.len : r.len;                         // an event fills its berth
+const beamOf    = len => Math.max(8, Math.min(36, len * 0.24));               // plausible beam in feet
+const isSlip    = b => b.kind === 'slip';
+const arriveFrom = b => isSlip(b) ? b.dir : b.water;                          // which way hulls come and go
+
+/* Make an SVG element with attributes and (optionally) append it to a parent. */
+function el(tag, attrs, parent) {
+  const e = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+
+/* Hull outline in local coordinates: centreline on y = 0, stern at x = -L/2 (rounded
+   with a half circle), bow at x = +L/2 (pointed). h is half the beam. */
+function hullPath(L, h) {
+  const s = -L / 2, e = L / 2, taper = Math.min(L * 0.3, 3 * h);
+  return `M${s + h},${-h} H${e - taper} Q${e},${-h * 0.35} ${e},0 Q${e},${h * 0.35} ${e - taper},${h}` +
+         ` H${s + h} A${h},${h} 0 0 1 ${s + h},${-h} Z`;
+}
+
+/* CSS transform that puts a hull (or event band) on its berth. offset = feet from the
+   berth start to the stern. When berthed is false the hull is parked OFFSHORE feet out
+   in the water, which is where the arrival/departure animation starts and ends. */
+function transformFor(r, b, offset, berthed) {
+  const L = lengthOf(r, b), h = (r.event ? BAND : beamOf(L)) / 2;
+  const along = offset + L / 2;                          // hull centre, measured along the face
+  const out = isSlip(b) ? 0 : FENDER + h;                // push the hull off the face onto the water side
+  let cx = b.start[0] + b.dir[0] * along + b.water[0] * out;
+  let cy = b.start[1] + b.dir[1] * along + b.water[1] * out;
+  if (!berthed) { const a = arriveFrom(b); cx += a[0] * OFFSHORE; cy += a[1] * OFFSHORE; }
+  const angle = Math.atan2(b.dir[1], b.dir[0]) * 180 / Math.PI;   // 0 = pointing east, 90 = pointing south
+  return `translate(${cx}px, ${cy}px) rotate(${angle}deg)`;
+}
+
+/* 5. BUILD. One <g> per reservation, created once and moved by setDay(). */
+function buildVessel(r) {
+  const b = berthById(r.berth), L = lengthOf(r, b);
+  const h = (r.event ? BAND : beamOf(L)) / 2;
+  const vertical = b.dir[0] === 0;                                 // hull lies north-south
+  // Which side of the hull faces the water, in local coords (+1 = local +y). 0 for slips.
+  const waterSide = b.dir[0] * b.water[1] - b.dir[1] * b.water[0];
+  const labelSide = waterSide > 0 ? 1 : -1;                        // beside-labels go on the water side
+  const g = el('g', { class: `vessel hidden ${r.event ? 'event' : 't-' + typeOf(r)}`, tabindex: 0, role: 'button',
+                      'aria-label': r.event ? `${r.name}, event at ${b.name}` : `${r.name}, ${r.len} ft, at ${b.name}` },
+               $(r.event ? 'bands' : 'vessels'));
+  const shape = r.event ? `M${-L / 2},${-h} h${L} v${2 * h} h${-L} Z` : hullPath(L, h);
+  el('path', { d: shape, class: 'body' }, g);
+  el('path', { d: shape, class: 'stripes' }, g);                   // shown only while over capacity
+  el('title', {}, g).textContent = r.event ? r.name : `${r.name} (${r.len}')`;
+
+  // Name: inside the hull when it is long enough, otherwise just beside it.
+  const inside = r.event || L >= r.name.length * 6 + 16;
+  const label = el('text', { class: 'name', 'dominant-baseline': 'middle',
+                             x: inside || vertical ? 0 : -L / 2 + 2,
+                             y: inside ? 0 : labelSide * (h + 8),
+                             'text-anchor': inside || vertical ? 'middle' : 'start' }, g);
+  if (vertical) label.setAttribute('transform', 'rotate(180)');    // so a rotated hull's text reads bottom-to-top
+  label.textContent = r.name;
+
+  // "+NN ft" badge for a vessel that is longer than its berth, sitting over the overhang.
+  if (!r.event && r.len > b.len) {
+    const over = r.len - b.len;
+    const badge = el('g', { class: 'badge',
+      transform: `translate(${L / 2 - over / 2},${-labelSide * (h + 8)})${vertical ? ' rotate(180)' : ''}` }, g);
+    el('rect', { x: -17, y: -6, width: 34, height: 12, rx: 3 }, badge);
+    el('text', { 'text-anchor': 'middle', 'dominant-baseline': 'middle', y: 0.5 }, badge).textContent = `+${over} ft`;
+  }
+  g.style.transform = transformFor(r, b, 0, false);                // start parked offshore
+  g.addEventListener('click', ev => openCard(r, ev.clientX, ev.clientY));
+  g.addEventListener('keydown', ev => {
+    if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); const bb = g.getBoundingClientRect();
+      openCard(r, bb.left + bb.width / 2, bb.top + bb.height / 2); }
+  });
+  r.el = g;
+}
+
+/* Draw each berth's face as a fender line (slips as a dashed box) so it can pulse red. */
+function drawBerthLines() {
+  for (const b of BERTHS) {
+    const [x, y] = b.start;
+    b.lineEl = isSlip(b)
+      ? el('rect', { x, y: y - 14, width: b.len, height: 28, class: 'berth-line slip' }, $('berthLines'))
+      : el('line', { x1: x, y1: y, x2: x + b.dir[0] * b.len, y2: y + b.dir[1] * b.len, class: 'berth-line' }, $('berthLines'));
+    el('title', {}, b.lineEl).textContent = `${b.name} (${b.len}')`;
+  }
+}
+
+/* 6. SCHEDULE RULES */
+const activeOn  = day => RESERVATIONS.filter(r => r.s <= day && day <= r.e);   // end date is inclusive
+const byArrival = (a, b) => a.s - b.s || (a.len || 0) - (b.len || 0);
+
+/* Where each active hull sits along its face: earliest arrival nearest the start, the
+   rest packed after it with PACK_GAP between. Events keep offset 0 (whole berth). */
+function placementsOn(day) {
+  const at = new Map();
+  for (const b of BERTHS) {
+    let cursor = 0;
+    for (const r of activeOn(day).filter(r => r.berth === b.id).sort(byArrival)) {
+      at.set(r, r.event ? 0 : cursor);
+      cursor += lengthOf(r, b) + PACK_GAP;
+    }
+  }
+  return at;
+}
+
+/* THE CAPACITY RULE - two independent checks per berth:
+   - overhang: a vessel longer than its berth never fits, even when it is alone;
+   - over capacity: a slip holds ONE vessel; a linear face holds any number as long as
+     their lengths add up to no more than the face length (an event counts as the whole
+     face). The gaps between packed hulls are ignored on purpose. */
+function conflictsOn(day) {
+  const list = [];
+  for (const b of BERTHS) {
+    const here = activeOn(day).filter(r => r.berth === b.id);
+    for (const r of here) {
+      if (!r.event && r.len > b.len) list.push({ kind: 'overhang', berth: b, res: [r],
+        text: `${r.name} (${r.len}') exceeds ${b.name} (${b.len}') by ${r.len - b.len} ft` });
+    }
+    if (here.length < 2) continue;
+    const total = here.reduce((sum, r) => sum + lengthOf(r, b), 0);
+    const parts = here.map(r => r.event ? `${r.name} (event, all ${b.len}')` : `${r.name} (${r.len}')`);
+    if (isSlip(b)) list.push({ kind: 'overcap', berth: b, res: here,
+      text: `${b.name} double-booked: ${parts.join(' and ')} - a slip holds one vessel` });
+    else if (total > b.len) list.push({ kind: 'overcap', berth: b, res: here,
+      text: `${b.name} over capacity: ${parts.join(' + ')} = ${total}' > ${b.len}'` });
+  }
+  return list;
+}
+
+/* 7. RENDER ONE DAY: move every hull to its berth or offshore, flag conflicts, fill the panel. */
+const state = { day: 0 };
+function setDay(day) {
+  state.day = day;
+  $('day').value = day;
+  $('date').textContent = fmtDate(day);
+  const active = activeOn(day), at = placementsOn(day), conflicts = conflictsOn(day);
+  const overCap   = conflicts.filter(c => c.kind === 'overcap');
+  const striped   = new Set(overCap.flatMap(c => c.res));
+  const hotBerths = new Set(overCap.map(c => c.berth));
+  for (const r of RESERVATIONS) {
+    const on = active.includes(r), b = berthById(r.berth);
+    if (on) r.offset = at.get(r);                       // remember the spot so it departs from there
+    r.el.classList.toggle('hidden', !on);
+    r.el.classList.toggle('over', striped.has(r));
+    r.el.style.transform = transformFor(r, b, r.offset || 0, on);
+  }
+  for (const b of BERTHS) b.lineEl.classList.toggle('over', hotBerths.has(b));
+  renderPanel(conflicts, active);
+}
+
+function renderPanel(conflicts, active) {
+  const list = $('conflicts');
+  list.innerHTML = conflicts.length ? '' : '<li class="ok">No conflicts today.</li>';
+  $('count').textContent = conflicts.length;
+  for (const c of conflicts) {
+    const li = document.createElement('li');
+    li.className = 'conflict';
+    li.innerHTML = `<span class="ico" aria-hidden="true">${c.kind === 'overcap' ? '!' : '+'}</span><span></span>`;
+    li.lastChild.textContent = c.text;
+    list.appendChild(li);
+  }
+  const occ = $('occupancy');
+  occ.innerHTML = '';
+  for (const b of BERTHS) {
+    const here = active.filter(r => r.berth === b.id);
+    if (!here.length) continue;
+    const used = here.reduce((sum, r) => sum + lengthOf(r, b), 0);
+    const li = document.createElement('li');
+    li.className = 'occ';
+    li.innerHTML = '<b></b> ';
+    li.firstChild.textContent = b.name;
+    li.appendChild(document.createTextNode(`${used}' of ${b.len}' - ${here.map(r => r.name).join(', ')}`));
+    occ.appendChild(li);
+  }
+  if (!occ.children.length) occ.innerHTML = '<li class="ok">Nothing berthed.</li>';
+}
+
+/* 8. TIMELINE CONTROLS: the slider picks a day; Play advances one day every 400 ms. */
+let timer = null;
+function play() {
+  timer = setInterval(() => (state.day < DAYS - 1 ? setDay(state.day + 1) : pause()), 400);
+  $('play').innerHTML = '&#10074;&#10074; Pause';
+  $('play').setAttribute('aria-pressed', 'true');
+}
+function pause() {
+  clearInterval(timer);
+  timer = null;
+  $('play').innerHTML = '&#9654; Play';
+  $('play').setAttribute('aria-pressed', 'false');
+}
+$('play').addEventListener('click', () => {
+  if (timer) { pause(); return; }
+  if (state.day >= DAYS - 1) setDay(0);                 // at the end: start over
+  play();
+});
+$('day').addEventListener('input', () => { pause(); setDay(+$('day').value); });
+
+/* 9. CLICK CARD: details for one reservation, placed near the click but kept inside the map box. */
+function openCard(r, clientX, clientY) {
+  const b = berthById(r.berth), card = $('card'), wrap = $('mapWrap');
+  const status = r.event ? 'Event: occupies the whole berth'
+               : r.len > b.len ? `Does not fit: ${r.len - b.len} ft longer than the berth` : 'Fits the berth';
+  card.innerHTML = '<button class="close" aria-label="Close">&#215;</button><strong></strong><div class="meta"></div>';
+  card.querySelector('strong').textContent = r.name;
+  const lines = [ r.event ? 'Event' : `${r.len} ft - ${TYPE_NAMES[typeOf(r)]}`,
+                  `${b.name} (${b.len} ft)`,
+                  `${fmtDate(r.s)} to ${fmtDate(r.e)} (${r.e - r.s + 1} days)`, status ];
+  for (const t of lines) { const d = document.createElement('div'); d.textContent = t; card.querySelector('.meta').appendChild(d); }
+  card.querySelector('.close').addEventListener('click', closeCard);
+  card.hidden = false;
+  const box = wrap.getBoundingClientRect();
+  const x = clientX - box.left + wrap.scrollLeft, y = clientY - box.top;
+  card.style.left = Math.max(4, Math.min(x + 12, wrap.scrollLeft + wrap.clientWidth - card.offsetWidth - 8)) + 'px';
+  card.style.top  = Math.max(4, Math.min(y + 12, wrap.clientHeight - card.offsetHeight - 8)) + 'px';
+}
+function closeCard() { $('card').hidden = true; }
+$('map').addEventListener('click', ev => { if (!ev.target.closest('.vessel')) closeCard(); });
+document.addEventListener('keydown', ev => { if (ev.key === 'Escape') closeCard(); });
+
+/* 10. SCALE READOUT: the SVG's on-screen width divided by its width in feet. */
+function updateScaleNote() {
+  const pxPerFt = $('map').getBoundingClientRect().width / VIEW_W;
+  $('pxPerFt').textContent = Math.round(pxPerFt * 100);
+}
+window.addEventListener('resize', updateScaleNote);
+
+/* 11. START */
+for (const r of RESERVATIONS) { r.s = dayOf(r.start); r.e = dayOf(r.end); buildVessel(r); }
+drawBerthLines();
+updateScaleNote();
+setTimeout(() => setDay(0), 50);                        // a beat later, so day-0 vessels visibly sail in
+</script>
+</body>
+</html>

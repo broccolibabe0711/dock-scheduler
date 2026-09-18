@@ -1,0 +1,169 @@
+source_sheet,raw_name,vessel_name,name_key,type_prefix,length_ft,loa_ft,draft_ft,operator,contacts,notes,flags
+Science,M/Y Grey Horizon 46',M/Y Grey Horizon,my grey horizon,M/Y,46,"","","",Cell: 555-0103,"",""
+Science,OSV Blue Harbor 40',OSV Blue Harbor,osv blue harbor,OSV,40,"","",Harbor Institute,"","",no_contact
+Science,R/V High Drift 120',R/V High Drift,rv high drift,R/V,120,"","",Coastal Survey Partners,Parker Underhill | Cell: 555-0134 | Cell: 555-0173 | rowan.oakes@example.com | Cell: 555-0103 | Cell: 555-0155 | Cell: 555-0198 | Capt. Cameron Underhill | Capt. Drew Garland | Cell: 555-0120 | skyler.sterling@example.com | cameron.kendrick@example.com | Cell: 555-0149 | kai.fairweather@example.com,"",""
+Science,R/V Iron Skua 72',R/V Iron Skua,rv iron skua,R/V,72,"","",Harbor Institute,Casey Ellery | Cell: 555-0174 | Cell: 555-0119 | Cell: 555-0124 | drew.ashford@example.com | Cell: 555-0120,"",""
+Science,R/V Bright Dory 52',R/V Bright Dory,rv bright dory,R/V,52,"","",Harbor Institute,Avery Ellery | Cell: 555-0184 | Cell: 555-0113,"",""
+Science,R/V Wild Marlin 32',R/V Wild Marlin,rv wild marlin,R/V,32,"","",Seaway Education Trust,Cell: 555-0192 | Cell: 555-0144,"",""
+Science,M/V High Strand 145',M/V High Strand,mv high strand,M/V,145,"","",Gulf Coast University,Avery Corwin | Cell: 555-0195 | blake.ingram@example.com | Cell: 555-0193 | Jesse Marsh | Cell: 555-0163 | rowan.hollis@example.com,"",""
+Science,S/V Wild Drift 24',S/V Wild Drift,sv wild drift,S/V,24,"","",Coastal Survey Partners,Jordan Pembroke | Cell: 555-0144 | Cell: 555-0101 | Capt. Riley Oakes | Cell: 555-0195 | jordan.marsh@example.com | Avery Everly | Cell: 555-0178 | rowan.ransom@example.com | Capt. Hayden Sterling | Cell: 555-0174 | logan.fairweather@example.com | Capt. Rowan Ransom,See scheduling file for specs | Approved by operations,"see_schedule_file,approved"
+Science,M/V Northern Ketch 120',M/V Northern Ketch,mv northern ketch,M/V,120,"","",Gulf Coast University,Drew Calloway | Cell: 555-0191 | Cell: 555-0122 | kendall.calloway@example.com,Pending insurance paperwork,insurance_pending
+Science,M/V CORAL DRIFT 100',M/V CORAL DRIFT,mv coral drift,M/V,100,"","","",Capt. Alex Bexley | Quinn Quill | Cell: 555-0177 | quinn.bexley@example.com,Short visit only,short_visit
+Science,F/V Bright Heron 32',F/V Bright Heron,fv bright heron,F/V,32,"","",Northwind Offshore,"","",no_contact
+Science,R/V Green Meridian 32',R/V Green Meridian,rv green meridian,R/V,32,"","","",Taylor Danforth,"",""
+Science,Tug Long Skua 170',Tug Long Skua,tug long skua,Tug,170,"","","",Capt. Blake Fenwick,"",""
+Science,M/Y Iron Gannet 170',M/Y Iron Gannet,my iron gannet,M/Y,170,"","","",Sage Sterling,"",""
+Science,F/V Bright Horizon 170',F/V Bright Horizon,fv bright horizon,F/V,170,"","","",Jesse Dunmore | Cell: 555-0106 | Cell: 555-0123 | Cell: 555-0153 | Cell: 555-0126,"",""
+Science,R/V High Sound 32',R/V High Sound,rv high sound,R/V,32,65,4,"",marley.garland@example.com,"",length_loa_mismatch
+Science,R/V Coral Voyager 46',R/V Coral Voyager,rv coral voyager,R/V,46,"","",Open Water Sailing School,Logan Ellery | Cell: 555-0198,"",""
+Science,S/V Clear Horizon 85',S/V Clear Horizon,sv clear horizon,S/V,85,"","",Bayline Charters,Sage Yardley | noel.kendrick@example.com | Cell: 555-0113 | Cell: 555-0103 | Capt. Emerson Fenwick,"",""
+Science,S/V Wild Cove 120',S/V Wild Cove,sv wild cove,S/V,120,"","","",Capt. Parker Fenwick | reese.fairweather@example.com | Cell: 555-0199 | cameron.norwood@example.com | logan.garland@example.com,"",""
+Science,R/V Coral Anchor 120',R/V Coral Anchor,rv coral anchor,R/V,120,"","","",Capt. Alex Thorne | Capt. Reese Lowell | Cell: 555-0115 | Cell: 555-0128 | noel.fenwick@example.com,No overnight crew,no_overnight_crew
+Science,F/V Iron Beacon 100',F/V Iron Beacon,fv iron beacon,F/V,100,"","",Coastal Survey Partners,Cell: 555-0183 | Cell: 555-0122 | elliot.garland@example.com | Cell: 555-0146,Short visit only | Confirmed by marine ops,"short_visit,confirmed"
+Science,S/V Bright Wind 72',S/V Bright Wind,sv bright wind,S/V,72,"","",Regional Fisheries Agency,Taylor Garland | Cell: 555-0149 | kendall.quill@example.com | Cell: 555-0121 | Capt. Logan Calloway,"",""
+Science,R/V Deep Heron 46',R/V Deep Heron,rv deep heron,R/V,46,"","","",Casey Hollis,"",""
+Science,M/V High Current 170',M/V High Current,mv high current,M/V,170,"","",Harbor Institute,marley.hollis@example.com | Cell: 555-0142 | Cell: 555-0153 | rowan.underhill@example.com | Cell: 555-0117 | hayden.ashford@example.com | Capt. Parker Whitlock | rowan.pembroke@example.com | Cell: 555-0138 | noel.bexley@example.com | Cell: 555-0106 | Cell: 555-0160,"",""
+Science,S/V Far Osprey 52',S/V Far Osprey,sv far osprey,S/V,52,"","","",Capt. Alex Lowell | finley.danforth@example.com | Cell: 555-0126 | Cell: 555-0112,Confirmed by marine ops,confirmed
+Science,R/V Amber Wind 32',R/V Amber Wind,rv amber wind,R/V,32,"","",Regional Fisheries Agency,Cell: 555-0180 | finley.quill@example.com | Cell: 555-0114 | Capt. Morgan Hollis | dana.lowell@example.com | Cell: 555-0167 | Cell: 555-0193,"",""
+Science,M/V Salt Wind 170',M/V Salt Wind,mv salt wind,M/V,170,"","","",Capt. Marley Vance | kai.yardley@example.com | Cell: 555-0155,"",""
+Science,R/V Deep Ketch 32',R/V Deep Ketch,rv deep ketch,R/V,32,"","",Gulf Coast University,"","",no_contact
+Science,F/V Bright Compass 120',F/V Bright Compass,fv bright compass,F/V,120,"","",Seaway Education Trust,jesse.oakes@example.com | Cell: 555-0106 | Cell: 555-0137 | Capt. Alex Norwood | kai.whitlock@example.com | Cell: 555-0147,"",""
+Science,R/V Deep Voyager 120',R/V Deep Voyager,rv deep voyager,R/V,120,"","","",logan.calloway@example.com | Quinn Sterling | Cell: 555-0106,"",""
+Science,R/V Iron Ketch 46',R/V Iron Ketch,rv iron ketch,R/V,46,"","","",Capt. Casey Dunmore | harper.fairweather@example.com | Cell: 555-0192,"",""
+Science,M/V Far Anchor 120',M/V Far Anchor,mv far anchor,M/V,120,"","","",Cell: 555-0141 | alex.bramble@example.com | Cell: 555-0149,"",""
+Science,Barge Long Ledge 40',Barge Long Ledge,barge long ledge,Barge,40,"","","",Cell: 555-0144 | quinn.oakes@example.com | Cell: 555-0104 | Cell: 555-0121 | Cell: 555-0105,"",""
+Science,OSV Salt Lantern 46',OSV Salt Lantern,osv salt lantern,OSV,46,"","",State Marine Academy,Cell: 555-0131 | cameron.underhill@example.com,"",""
+Science,M/V Swift Strand 40',M/V Swift Strand,mv swift strand,M/V,40,"","",Tidewater Marine Services,Cell: 555-0132,"",""
+Science,R/V Clear Tern 120',R/V Clear Tern,rv clear tern,R/V,120,"","","",Cell: 555-0181 | avery.marsh@example.com,See scheduling file for specs,see_schedule_file
+Science,R/V Swift Heron 120',R/V Swift Heron,rv swift heron,R/V,120,"","",State Marine Academy,Cell: 555-0178 | lee.vance@example.com,"",""
+Science,R/V Northern Sextant 52',R/V Northern Sextant,rv northern sextant,R/V,52,"","","",harper.kendrick@example.com | skyler.fenwick@example.com,Contact captain on arrival,contact_captain_on_arrival
+Science,R/V Silver Anchor 170',R/V Silver Anchor,rv silver anchor,R/V,170,"","",State Marine Academy,Cell: 555-0190 | parker.sterling@example.com,"",""
+Science,R/V Amber Drift 170',R/V Amber Drift,rv amber drift,R/V,170,"","",Harbor Institute,Reese Abbott | emerson.pembroke@example.com,"",""
+Science,Barge High Voyager 100',Barge High Voyager,barge high voyager,Barge,100,"","","",finley.garland@example.com,"",""
+Science,R/V High Reef 32',R/V High Reef,rv high reef,R/V,32,"","","",Capt. Elliot Fenwick | morgan.bramble@example.com | Cell: 555-0116 | taylor.thorne@example.com,"",""
+Science,R/V Amber Marlin 145',R/V Amber Marlin,rv amber marlin,R/V,145,"","",Tidewater Marine Services / Harbor Institute,kendall.danforth@example.com | Capt. Rowan Ashford | Cell: 555-0130 | marley.abbott@example.com,No overnight crew,"no_overnight_crew,multiple_operators"
+Science,R/V Wild Ledge 120',R/V Wild Ledge,rv wild ledge,R/V,120,"","","",quinn.ellery@example.com | Drew Dunmore | Cell: 555-0139 | Cell: 555-0179,"",""
+Science,M/V Grey Tern 65',M/V Grey Tern,mv grey tern,M/V,65,"","",Gulf Coast University,Cell: 555-0171 | quinn.bexley@example.com,"",""
+Science,S/V Quiet Sound 24',S/V Quiet Sound,sv quiet sound,S/V,24,"","","",Cell: 555-0139 | jordan.fairweather@example.com | Capt. Jordan Bexley | jamie.marsh@example.com | Cell: 555-0164,Approved by operations | Confirmed by marine ops,"approved,confirmed"
+Science,M/V Green Kestrel 100',M/V Green Kestrel,mv green kestrel,M/V,100,"","",Bayline Charters / Tidewater Marine Services,alex.garland@example.com | Cell: 555-0109,"",multiple_operators
+Science,R/V Clear Strand 145',R/V Clear Strand,rv clear strand,R/V,145,"","","",Capt. Hayden Yardley | lee.oakes@example.com,"",""
+Science,R/V Coral Meridian 24',R/V Coral Meridian,rv coral meridian,R/V,24,"","",State Marine Academy,taylor.bexley@example.com | Cell: 555-0191,"",""
+Science,M/V Silver Kestrel 46',M/V Silver Kestrel,mv silver kestrel,M/V,46,"","","",Capt. Finley Danforth | dana.whitlock@example.com,Approved by operations,approved
+Science,M/V Grey Star 120',M/V Grey Star,mv grey star,M/V,120,"","","",Cell: 555-0107 | Cell: 555-0174,"",""
+Science,M/V High Ledge 40',M/V High Ledge,mv high ledge,M/V,40,"","","",dana.quill@example.com | Marley Bramble,"",""
+Science,M/V Iron Sound 145',M/V Iron Sound,mv iron sound,M/V,145,"","",Open Water Sailing School,Noel Everly | Capt. Parker Ingram | emerson.hollis@example.com | Cell: 555-0163 | Capt. Reese Hollis | casey.ingram@example.com | Cell: 555-0134 | Cell: 555-0114,"",""
+Science,S/V Quiet Tide 52',S/V Quiet Tide,sv quiet tide,S/V,52,"","",Coastal Survey Partners,Capt. Sage Oakes | jordan.pembroke@example.com | Cell: 555-0115,"",""
+Science,R/V Northern Skua 120',R/V Northern Skua,rv northern skua,R/V,120,"","","",jesse.quill@example.com,"",""
+Science,F/V Coral Ketch 120',F/V Coral Ketch,fv coral ketch,F/V,120,"","","",Cell: 555-0184 | Cell: 555-0107,"",""
+Science,R/V Grey Current 65',R/V Grey Current,rv grey current,R/V,65,"","","",Cell: 555-0136 | Avery Dunmore | Cell: 555-0171,"",""
+Science,S/V Golden Tide 40',S/V Golden Tide,sv golden tide,S/V,40,"","","",Cell: 555-0190 | Jamie Dunmore,"",""
+Science,F/V Clear Meridian 24',F/V Clear Meridian,fv clear meridian,F/V,24,"","",Regional Fisheries Agency,Cell: 555-0133,Contact captain on arrival,contact_captain_on_arrival
+Science,F/V Far Petrel 24',F/V Far Petrel,fv far petrel,F/V,24,"","","",Cell: 555-0190 | Finley Sterling | Cell: 555-0149,"",""
+Science,Barge NORTHERN MARLIN 24',Barge NORTHERN MARLIN,barge northern marlin,Barge,24,65,8,Bayline Charters,Lee Quill | Cell: 555-0142 | Cell: 555-0187,"",length_loa_mismatch
+Science,Tug Salt Strand 85',Tug Salt Strand,tug salt strand,Tug,85,"","","",Capt. Dana Ransom | Cell: 555-0123 | finley.vance@example.com | sage.ingram@example.com | blake.abbott@example.com | Cell: 555-0184,"",""
+Science,M/V IRON HERON 100',M/V IRON HERON,mv iron heron,M/V,100,"","","","","",no_contact
+Science,R/V Western Ledge 170',R/V Western Ledge,rv western ledge,R/V,170,"","","",morgan.jarvis@example.com | Cell: 555-0152,"",""
+Science,F/V High Skua 120',F/V High Skua,fv high skua,F/V,120,"","",Coastal Survey Partners,riley.bexley@example.com | Cell: 555-0147,"",""
+Science,M/Y High Anchor 40',M/Y High Anchor,my high anchor,M/Y,40,"","","",marley.ellery@example.com | Cell: 555-0129,"",""
+Science,F/V Green Heron 32',F/V Green Heron,fv green heron,F/V,32,"","","",Cell: 555-0143 | avery.danforth@example.com | Cell: 555-0138,No overnight crew,no_overnight_crew
+Science,M/V Silver Ledge 72',M/V Silver Ledge,mv silver ledge,M/V,72,"","",Bayline Charters,"","",no_contact
+Science,M/V Swift Cove 145',M/V Swift Cove,mv swift cove,M/V,145,"","","",Cell: 555-0139 | morgan.danforth@example.com,"",""
+Science,Barge Northern Drift 52',Barge Northern Drift,barge northern drift,Barge,52,"","",Harbor Institute,hayden.corwin@example.com,Contact captain on arrival,contact_captain_on_arrival
+Science,OSV Blue Sound 170',OSV Blue Sound,osv blue sound,OSV,170,"","","",noel.hollis@example.com | Reese Hollis,"",""
+Science,M/V Northern Gannet 85',M/V Northern Gannet,mv northern gannet,M/V,85,"","",Estuary Foundation / Gulf Coast University,Cell: 555-0152 | Cell: 555-0147 | Cell: 555-0180 | Capt. Riley Corwin | sage.fairweather@example.com | elliot.yardley@example.com | Capt. Noel Corwin | rowan.ellery@example.com | quinn.norwood@example.com | kai.quill@example.com | Cell: 555-0156 | marley.vance@example.com,"",multiple_operators
+Science,R/V Bright Fathom 46',R/V Bright Fathom,rv bright fathom,R/V,46,"","",Regional Fisheries Agency / Estuary Foundation / State Marine Academy,Cell: 555-0179 | hayden.danforth@example.com | kai.fenwick@example.com | Cell: 555-0167,"",multiple_operators
+Science,S/V High Tide 24',S/V High Tide,sv high tide,S/V,24,"","",Estuary Foundation,blake.thorne@example.com,"",""
+Science,S/V Clear Heron 85',S/V Clear Heron,sv clear heron,S/V,85,"","","",Capt. Taylor Calloway | Cell: 555-0155 | cameron.thorne@example.com,"",""
+Science,F/V Golden Petrel 145',F/V Golden Petrel,fv golden petrel,F/V,145,"","",Lakeshore Research Group,Cell: 555-0196 | Capt. Avery Oakes | Cell: 555-0183 | Capt. Skyler Yardley | Cell: 555-0187,Approved by operations,approved
+Science,OS/V High Petrel 170',OSV High Petrel,osv high petrel,OSV,170,"","","",Capt. Jesse Whitlock | Morgan Ingram | Cell: 555-0131 | harper.thorne@example.com,"",""
+Science,R/V Bright Meridian 120',R/V Bright Meridian,rv bright meridian,R/V,120,"","",Seaway Education Trust,Capt. Skyler Dunmore | Cell: 555-0144 | lee.marsh@example.com | kai.vance@example.com,"",""
+Science,R/V Northern Sound 46',R/V Northern Sound,rv northern sound,R/V,46,"","",Coastal Survey Partners,Cell: 555-0191 | blake.garland@example.com,"",""
+Science,R/V High Dory 100',R/V High Dory,rv high dory,R/V,100,"","","",Cell: 555-0123 | Lee Sterling | Cell: 555-0170 | Kai Underhill,Will raft alongside if needed,rafts_ok
+Science,R/V Grey Tide 65',R/V Grey Tide,rv grey tide,R/V,65,"","",Lakeshore Research Group,alex.thorne@example.com,Short visit only | Pending insurance paperwork,"short_visit,insurance_pending"
+Science,R/V Salt Skua 52',R/V Salt Skua,rv salt skua,R/V,52,"","",Lakeshore Research Group,Cell: 555-0133 | Cell: 555-0132,Pending insurance paperwork | Tentative - awaiting confirmation,"insurance_pending,tentative"
+Science,R/V High Reef 72',R/V High Reef,rv high reef,R/V,72,"","",Lakeshore Research Group,"","",no_contact
+Science,OS/V Silver Skua 24',OSV Silver Skua,osv silver skua,OSV,24,"","",Seaway Education Trust / Regional Fisheries Agency,Capt. Emerson Quill,"",multiple_operators
+Science,M/Y Clear Wind 32',M/Y Clear Wind,my clear wind,M/Y,32,"","","",skyler.marsh@example.com | alex.quill@example.com,"",""
+Science,M/V Deep Meridian 145',M/V Deep Meridian,mv deep meridian,M/V,145,"","","",jamie.dunmore@example.com | Cell: 555-0163,"",""
+Science,M/V Deep Gannet 32',M/V Deep Gannet,mv deep gannet,M/V,32,"","","",sage.ellery@example.com | Capt. Lee Marsh | Taylor Bramble,"",""
+Science,M/V Far Fathom 72',M/V Far Fathom,mv far fathom,M/V,72,"","","",Cell: 555-0167 | Capt. Cameron Hollis | Cell: 555-0176 | taylor.bexley@example.com | Cell: 555-0178 | Cell: 555-0189 | Lee Marsh | Quinn Ransom | Capt. Finley Marsh | Noel Jarvis | dana.lowell@example.com | Cell: 555-0159,See scheduling file for specs,see_schedule_file
+Science,M/V Clear Cove 46',M/V Clear Cove,mv clear cove,M/V,46,"","","","","",no_contact
+Science,R/V Iron Current 100',R/V Iron Current,rv iron current,R/V,100,"","","","",Pending insurance paperwork | Short visit only,"insurance_pending,short_visit,no_contact"
+Science,R/V Deep Strand 65',R/V Deep Strand,rv deep strand,R/V,65,"","","",Cell: 555-0125,"",""
+Science,R/V Amber Voyager 24',R/V Amber Voyager,rv amber voyager,R/V,24,"","","","",Confirmed by marine ops,"confirmed,no_contact"
+Science,R/V Western Fathom 32',R/V Western Fathom,rv western fathom,R/V,32,"","","",Capt. Cameron Quill,"",""
+Science,M/V Western Anchor 65',M/V Western Anchor,mv western anchor,M/V,65,"","","",Cell: 555-0107 | Cell: 555-0145 | Cell: 555-0112 | marley.danforth@example.com | Cell: 555-0178 | emerson.norwood@example.com | Cell: 555-0109 | harper.marsh@example.com,"",""
+Science,M/V Clear Petrel 46',M/V Clear Petrel,mv clear petrel,M/V,46,"","",Lakeshore Research Group / Bayline Charters,Dana Quill | Capt. Logan Garland | Capt. Quinn Norwood | Casey Jarvis | Cell: 555-0108 | Rowan Dunmore | Cell: 555-0147 | Lee Danforth | marley.norwood@example.com | Cell: 555-0113,"",multiple_operators
+Science,R/V Long Current 65',R/V Long Current,rv long current,R/V,65,"","","",Capt. Cameron Vance | morgan.corwin@example.com,"",""
+Science,R/V Wild Heron 145',R/V Wild Heron,rv wild heron,R/V,145,"","","",Capt. Cameron Ashford | Parker Quill | Cell: 555-0121 | Morgan Ransom,"",""
+Yachts,M/Y Western Strand 52',M/Y Western Strand,my western strand,M/Y,52,65,4,Gulf Coast University,Rowan Thorne | Capt. Logan Ashford | alex.ashford@example.com | Cell: 555-0178,Will raft alongside if needed | Short visit only,"rafts_ok,short_visit,length_loa_mismatch"
+Yachts,"LOA: 145', Draft: 12'","","",other,145,145,12,"",Capt. Jesse Thorne | logan.fairweather@example.com | Cell: 555-0179,"",unnamed
+Yachts,M/Y Long Dory 52',M/Y Long Dory,my long dory,M/Y,52,"","",Harbor Institute,Capt. Dana Everly | Cell: 555-0102 | Cell: 555-0156 | riley.quill@example.com | blake.ashford@example.com | Capt. Dana Bexley,"",""
+Yachts,S/Y High Gannet 100',S/Y High Gannet,sy high gannet,S/Y,100,"","","",Capt. Jamie Everly | Capt. Parker Norwood | elliot.dunmore@example.com | Cell: 555-0101,"",""
+Yachts,M/V Deep Sextant 24',M/V Deep Sextant,mv deep sextant,M/V,24,"","",Regional Fisheries Agency,Capt. Lee Thorne | harper.kendrick@example.com | Cell: 555-0159,"",""
+Yachts,M/V Western Petrel 46',M/V Western Petrel,mv western petrel,M/V,46,"","",Coastal Survey Partners,Capt. Reese Fairweather | jamie.vance@example.com | Cell: 555-0166,Short visit only,short_visit
+Yachts,M/Y Grey Heron 52',M/Y Grey Heron,my grey heron,M/Y,52,"","","",Capt. Riley Thorne | Cell: 555-0165 | Capt. Cameron Pembroke | lee.ashford@example.com,Short visit only,short_visit
+Yachts,M/Y Wild Tern 145',M/Y Wild Tern,my wild tern,M/Y,145,"","",Bayline Charters,lee.abbott@example.com | reese.jarvis@example.com,"",""
+Yachts,M/Y Wild Meridian 72',M/Y Wild Meridian,my wild meridian,M/Y,72,"","","",Capt. Taylor Dunmore | Jesse Corwin | riley.lowell@example.com | blake.everly@example.com | blake.ashford@example.com,"",""
+Yachts,M/Y Swift Kestrel 52',M/Y Swift Kestrel,my swift kestrel,M/Y,52,"","",Open Water Sailing School,marley.kendrick@example.com,"",""
+Yachts,M/Y Coral Osprey 170',M/Y Coral Osprey,my coral osprey,M/Y,170,"","","",Capt. Reese Yardley | taylor.garland@example.com,"",""
+Yachts,S/V Amber Star 32',S/V Amber Star,sv amber star,S/V,32,"","","",Cell: 555-0137 | logan.vance@example.com,"",""
+Yachts,M/Y Salt Gannet 145',M/Y Salt Gannet,my salt gannet,M/Y,145,"","","",Capt. Cameron Ingram | Cell: 555-0118 | harper.fenwick@example.com,"",""
+Yachts,M/Y Northern Cove 32',M/Y Northern Cove,my northern cove,M/Y,32,"","","",Capt. Avery Quill | Cell: 555-0168 | hayden.ellery@example.com,"",""
+Yachts,M/Y Swift Dory 85',M/Y Swift Dory,my swift dory,M/Y,85,"","","",Capt. Sage Danforth,"",""
+Yachts,M/Y Iron Petrel 120',M/Y Iron Petrel,my iron petrel,M/Y,120,"","",Gulf Coast University,rowan.fairweather@example.com | Cell: 555-0162,See scheduling file for specs,see_schedule_file
+Yachts,S/Y Deep Cove 145',S/Y Deep Cove,sy deep cove,S/Y,145,"","",State Marine Academy,Capt. Drew Quill | Capt. Finley Pembroke | jesse.yardley@example.com | Capt. Drew Ellery | Cell: 555-0109 | kendall.underhill@example.com | Cell: 555-0188,See scheduling file for specs,see_schedule_file
+Yachts,M/Y Western Current 85',M/Y Western Current,my western current,M/Y,85,"","","",Capt. Logan Ellery | reese.bexley@example.com | emerson.ellery@example.com | Capt. Casey Whitlock | sage.danforth@example.com | Cell: 555-0144 | Cell: 555-0139 | Capt. Casey Abbott,"",""
+Yachts,M/Y Swift Petrel 100',M/Y Swift Petrel,my swift petrel,M/Y,100,"","","",Capt. Kai Bramble | Capt. Elliot Calloway | dana.jarvis@example.com | Cell: 555-0186 | Elliot Norwood,"",""
+Yachts,M/Y Far Horizon 170',M/Y Far Horizon,my far horizon,M/Y,170,"","","",Cell: 555-0138 | Capt. Jesse Quill | morgan.dunmore@example.com,"",""
+Yachts,S/V Northern Meridian 85',S/V Northern Meridian,sv northern meridian,S/V,85,"","","",Capt. Emerson Pembroke | Cell: 555-0194 | hayden.thorne@example.com,Tentative - awaiting confirmation,tentative
+Yachts,M/V Long Drift 52',M/V Long Drift,mv long drift,M/V,52,"","","",Capt. Taylor Dunmore | Cell: 555-0182 | harper.pembroke@example.com,Confirmed by marine ops,confirmed
+Yachts,M/V Quiet Tern 145',M/V Quiet Tern,mv quiet tern,M/V,145,"","",Harbor Institute,Cell: 555-0130 | sage.kendrick@example.com,See scheduling file for specs,see_schedule_file
+Yachts,M/Y Clear Star 120',M/Y Clear Star,my clear star,M/Y,120,"","",State Marine Academy,kai.vance@example.com | Capt. Drew Fenwick | drew.lowell@example.com,See scheduling file for specs,see_schedule_file
+Yachts,M/Y Salt Dory 85',M/Y Salt Dory,my salt dory,M/Y,85,"","","",Capt. Parker Norwood | Cell: 555-0141 | Cell: 555-0184,"",""
+Yachts,S/Y Clear Beacon 170',S/Y Clear Beacon,sy clear beacon,S/Y,170,"","","",Capt. Jesse Ashford | kendall.norwood@example.com | drew.oakes@example.com | Cell: 555-0157 | Cell: 555-0197,No overnight crew,no_overnight_crew
+Yachts,S/V Golden Star 40',S/V Golden Star,sv golden star,S/V,40,"","","",Capt. Parker Danforth | Noel Fairweather | Cell: 555-0106 | finley.fairweather@example.com,"",""
+Yachts,S/V Western Cove 24',S/V Western Cove,sv western cove,S/V,24,"","","",Capt. Riley Lowell | Cell: 555-0148 | harper.jarvis@example.com,"",""
+Yachts,S/V Amber Tide 46',S/V Amber Tide,sv amber tide,S/V,46,"","","",Capt. Jordan Fenwick | Cell: 555-0177 | sage.garland@example.com,"",""
+Yachts,S/V Northern Harbor 52',S/V Northern Harbor,sv northern harbor,S/V,52,"","","",Capt. Dana Norwood | Cell: 555-0157 | skyler.hollis@example.com,"",""
+Yachts,M/Y Swift Anchor 100',M/Y Swift Anchor,my swift anchor,M/Y,100,"","","",Capt. Dana Jarvis | Capt. Finley Dunmore | Cell: 555-0147 | jamie.quill@example.com,"",""
+Yachts,S/Y Clear Sextant 145',S/Y Clear Sextant,sy clear sextant,S/Y,145,"","","",Capt. Taylor Thorne | alex.abbott@example.com,"",""
+Yachts,R/V Amber Ledge 72',R/V Amber Ledge,rv amber ledge,R/V,72,"","","",elliot.whitlock@example.com,"",""
+Yachts,M/V Golden Skua 52',M/V Golden Skua,mv golden skua,M/V,52,"","",Tidewater Marine Services,riley.garland@example.com | Cell: 555-0126,Contact captain on arrival,contact_captain_on_arrival
+Yachts,S/Y Long Gannet 24',S/Y Long Gannet,sy long gannet,S/Y,24,"","",Bayline Charters,Cell: 555-0166 | blake.whitlock@example.com,"",""
+Yachts,M/V Wild Star 24',M/V Wild Star,mv wild star,M/V,24,"","","",Capt. Sage Abbott | Cell: 555-0163 | kendall.oakes@example.com,"",""
+Yachts,"LOA: 145', Draft: 12'","","",other,145,145,12,Northwind Offshore,Cell: 555-0140 | sage.ashford@example.com | Capt. Parker Quill | Cell: 555-0126 | blake.whitlock@example.com | finley.thorne@example.com,Approved by operations,"approved,unnamed"
+Yachts,M/V Deep Reef 24',M/V Deep Reef,mv deep reef,M/V,24,"","","",Capt. Dana Danforth | elliot.everly@example.com | dana.oakes@example.com | Cell: 555-0174 | Finley Kendrick | Cell: 555-0188,"",""
+Yachts,R/V Grey Reef 170',R/V Grey Reef,rv grey reef,R/V,170,"","","",logan.ellery@example.com,"",""
+Yachts,Barge Western Tern 100',Barge Western Tern,barge western tern,Barge,100,"","","",rowan.oakes@example.com,"",""
+Yachts,M/V Iron Harbor 100',M/V Iron Harbor,mv iron harbor,M/V,100,"","","",Capt. Drew Ransom | Cell: 555-0116,"",""
+Yachts,M/V Blue Tern 52',M/V Blue Tern,mv blue tern,M/V,52,"","",Lakeshore Research Group,"","",no_contact
+Yachts,S/V Bright Drift 32',S/V Bright Drift,sv bright drift,S/V,32,"","","",Capt. Sage Garland | kai.vance@example.com,"",""
+Yachts,M/V Wild Dory 52',M/V Wild Dory,mv wild dory,M/V,52,"","","",Capt. Reese Ashford | morgan.calloway@example.com,"",""
+Yachts,M/Y Blue Fathom 46',M/Y Blue Fathom,my blue fathom,M/Y,46,"","","",Capt. Finley Ashford | Jamie Kendrick | Capt. Avery Ellery,"",""
+Yachts,R/V Long Heron 85',R/V Long Heron,rv long heron,R/V,85,"","","",Cell: 555-0187 | dana.sterling@example.com | hayden.sterling@example.com,"",""
+Yachts,M/V Deep Reef 100',M/V Deep Reef,mv deep reef,M/V,100,"","","",Capt. Finley Dunmore | Cell: 555-0112 | hayden.ashford@example.com | lee.calloway@example.com | Cell: 555-0197,"",""
+Yachts,M/V Blue Osprey 100',M/V Blue Osprey,mv blue osprey,M/V,100,"","","",Cell: 555-0132 | rowan.norwood@example.com,No overnight crew,no_overnight_crew
+Yachts,M/V Quiet Drift 46',M/V Quiet Drift,mv quiet drift,M/V,46,"","","",Capt. Riley Quill | sage.quill@example.com | Cell: 555-0195,"",""
+Yachts,S/V Wild Reef 100',S/V Wild Reef,sv wild reef,S/V,100,"","","",Cell: 555-0124,"",""
+Yachts,OSV Clear Reef 46',OSV Clear Reef,osv clear reef,OSV,46,"","",Coastal Survey Partners,Cell: 555-0148 | blake.danforth@example.com,No overnight crew,no_overnight_crew
+Yachts,OSV Long Reef 120',OSV Long Reef,osv long reef,OSV,120,"","","",Capt. Logan Abbott | Cell: 555-0117,Contact captain on arrival,contact_captain_on_arrival
+Yachts,F/V Iron Ketch 65',F/V Iron Ketch,fv iron ketch,F/V,65,"","",Bayline Charters,Taylor Abbott | dana.ellery@example.com | Logan Hollis | Cell: 555-0121,"",""
+Yachts,R/V Blue Drift 120',R/V Blue Drift,rv blue drift,R/V,120,"","",State Marine Academy,Capt. Skyler Everly | Cell: 555-0149,"",""
+Yachts,S/V Quiet Fathom 40',S/V Quiet Fathom,sv quiet fathom,S/V,40,"","","",Capt. Elliot Fairweather | harper.vance@example.com,"",""
+Yachts,Tug Deep Wind 120',Tug Deep Wind,tug deep wind,Tug,120,"","",Harbor Institute,Cell: 555-0131 | rowan.underhill@example.com | Cell: 555-0130,No overnight crew,no_overnight_crew
+Yachts,Tug Long Anchor 170',Tug Long Anchor,tug long anchor,Tug,170,"","","",Capt. Lee Fairweather | jamie.quill@example.com | Cell: 555-0153,Short visit only,short_visit
+Yachts,M/Y CORAL WIND 40',M/Y CORAL WIND,my coral wind,M/Y,40,"","","",Capt. Kai Calloway | blake.underhill@example.com | Capt. Jordan Whitlock | Capt. Hayden Yardley | Cell: 555-0130,Pending insurance paperwork,insurance_pending
+Yachts,M/Y Green Beacon 145',M/Y Green Beacon,my green beacon,M/Y,145,"","","",Capt. Sage Vance | Cell: 555-0166,"",""
+Yachts,M/V Long Wind 40',M/V Long Wind,mv long wind,M/V,40,"","","",alex.oakes@example.com,"",""
+Yachts,R/V Swift Reef 170',R/V Swift Reef,rv swift reef,R/V,170,"","","",Capt. Marley Whitlock,"",""
+Yachts,Barge Wild Horizon 52',Barge Wild Horizon,barge wild horizon,Barge,52,"","","",casey.whitlock@example.com | Cell: 555-0188,"",""
+Yachts,R/V Salt Drift 85',R/V Salt Drift,rv salt drift,R/V,85,"","","",Cell: 555-0102 | marley.vance@example.com,"",""
+Yachts,OSV Silver Harbor 46',OSV Silver Harbor,osv silver harbor,OSV,46,"","","",Capt. Skyler Norwood | elliot.garland@example.com | Cell: 555-0161,"",""
+Yachts,R/V Long Voyager 100',R/V Long Voyager,rv long voyager,R/V,100,"","","","","",no_contact
+Yachts,R/V Iron Wind 46',R/V Iron Wind,rv iron wind,R/V,46,"","","",Cell: 555-0115 | hayden.everly@example.com,"",""
+Yachts,M/V Wild Sextant 100',M/V Wild Sextant,mv wild sextant,M/V,100,"","","","","",no_contact
+Yachts,Barge Salt Ledge 52',Barge Salt Ledge,barge salt ledge,Barge,52,"","","",dana.jarvis@example.com | Cell: 555-0166,"",""
+Yachts,S/V Wild Harbor 65',S/V Wild Harbor,sv wild harbor,S/V,65,"","","","","",no_contact
+Yachts,M/Y Wild Skua 40',M/Y Wild Skua,my wild skua,M/Y,40,"","","",marley.vance@example.com | Cell: 555-0192,"",""
+Yachts,M/V Swift Sextant 72',M/V Swift Sextant,mv swift sextant,M/V,72,"","",Lakeshore Research Group,Capt. Jamie Garland | noel.quill@example.com | Cell: 555-0160,Will raft alongside if needed | No overnight crew | Pending insurance paperwork | Short visit only,"rafts_ok,no_overnight_crew,insurance_pending,short_visit"

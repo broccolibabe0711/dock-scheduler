@@ -1,0 +1,33 @@
+date_iso,time_raw,time_valid,guide,guest_name,guest_org,people_raw,people_num,people_approx,dock_or_ship,notes,row_index
+2018-04-29,1530,15:30,Avery,Finley Ingram,Regional Fisheries Agency,6,6,false,R/V Silver Tern,Confirmed by marine ops,4
+2018-04-29,1400,14:00,Jesse,Morgan Ransom,Regional Fisheries Agency,4,4,false,R/V Northern Gannet,Pending insurance paperwork,5
+2018-04-29,1100,11:00,Hayden,Marley Ashford,Bayline Charters,11,11,false,R/V Blue Heron,Approved by operations,6
+2018-05-02,1600,16:00,Kendall,Jesse Corwin,Open Water Sailing School,10,10,false,R/V Northern Gannet,Approved by operations,7
+2018-05-02,tbd,"",Riley,Hayden Quill,Regional Fisheries Agency,9,9,false,R/V Blue Heron,Confirmed by marine ops,8
+2018-05-04,1015,10:15,Sage,Taylor Quill,Regional Fisheries Agency,~17,17,true,R/V Northern Gannet,Requires shore power,9
+2018-05-05,tbd,"",Jamie,Dana Vance,Gulf Coast University,3,3,false,R/V Silver Tern,Approved by operations,10
+2018-05-05,1530,15:30,Logan,Sage Hollis,Northwind Offshore,6,6,false,R/V Silver Tern,See scheduling file for specs,11
+2018-05-05,1130,11:30,Rowan,Avery Lowell,Regional Fisheries Agency,7,7,false,R/V Blue Heron,Approved by operations,12
+2018-05-07,1100,11:00,Reese,Logan Danforth,State Marine Academy,~13,13,true,R/V Blue Heron,Pending insurance paperwork,13
+2018-05-09,tbd,"",Blake,Jordan Jarvis,Lakeshore Research Group,16,16,false,R/V Silver Tern,Will raft alongside if needed,14
+2018-05-14,930,09:30,Taylor,Drew Jarvis,Seaway Education Trust,~23,23,true,R/V Blue Heron,Will raft alongside if needed,15
+2018-05-15,1000,10:00,Riley,Hayden Ransom,State Marine Academy,~15,15,true,R/V Silver Tern,Requires shore power,16
+2018-05-19,1175,"",Alex,Taylor Ransom,Estuary Foundation,15,15,false,R/V Silver Tern,Requires shore power,17
+2018-05-21,tbd,"",Kendall,Kai Norwood,Lakeshore Research Group,~30,30,true,R/V Silver Tern,Pending insurance paperwork,19
+2018-05-21,tbd,"",Alex,Jamie Ransom,State Marine Academy,17,17,false,R/V Blue Heron,Contact captain on arrival,20
+2018-05-22,tbd,"",Finley,Lee Ingram,Tidewater Marine Services,~13,13,true,R/V Blue Heron,Confirmed by marine ops,21
+2018-05-22,1330,13:30,Blake,Parker Norwood,Lakeshore Research Group,17,17,false,R/V Northern Gannet,See scheduling file for specs,22
+2018-05-22,1330,13:30,Morgan,Finley Abbott,Lakeshore Research Group,5,5,false,R/V Northern Gannet,"",23
+2018-05-27,1175,"",Skyler,Kendall Quill,Bayline Charters,~22,22,true,R/V Blue Heron,Pending insurance paperwork,24
+2018-05-28,tbd,"",Parker,Emerson Underhill,Bayline Charters,19,19,false,R/V Northern Gannet,Short visit only,25
+2018-06-01,1030,10:30,Elliot,Elliot Bramble,State Marine Academy,4,4,false,R/V Blue Heron,Requires shore power,26
+2018-06-02,1100,11:00,Cameron,Alex Fenwick,Gulf Coast University,18,18,false,R/V Northern Gannet,Approved by operations,27
+2018-06-04,1115,11:15,Harper,Jordan Quill,Coastal Survey Partners,5,5,false,R/V Blue Heron,Pending insurance paperwork,28
+2018-06-04,1600,16:00,Finley,Cameron Ellery,Open Water Sailing School,6,6,false,R/V Northern Gannet,"",29
+2018-06-06,900,09:00,Finley,Noel Yardley,Harbor Institute,5,5,false,R/V Blue Heron,"",30
+2018-06-11,1000,10:00,Cameron,Skyler Yardley,Coastal Survey Partners,~25,25,true,R/V Blue Heron,Approved by operations,31
+2018-06-28,tbd,"",Jordan,Hayden Pembroke,Seaway Education Trust,54,54,false,R/V Northern Gannet,"",34
+2018-06-29,tbd,"",Morgan,Skyler Norwood,Gulf Coast University,5,5,false,R/V Northern Gannet,Confirmed by marine ops,35
+2018-07-01,1430,14:30,Reese,Alex Garland,Bayline Charters,15,15,false,R/V Silver Tern,See scheduling file for specs,36
+2018-07-24,tbd,"",Quinn,Marley Quill,Gulf Coast University,1,1,false,R/V Northern Gannet,Short visit only,39
+2018-07-24,1430,14:30,Kai,Sage Calloway,Estuary Foundation,4,4,false,R/V Northern Gannet,Requires shore power,40
