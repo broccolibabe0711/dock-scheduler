@@ -88,11 +88,21 @@ def result_json(res: CheckResult) -> dict:
     return {"verdict": res.verdict.value, "blocking": res.blocking, "findings": [finding_json(f) for f in res.findings]}
 
 
+def _fit(r: Reservation, berth: Berth) -> str:
+    """'ok', 'misfit' or 'unknown' for one occupant, from the same fit rule the form uses."""
+    if r.kind is not ReservationKind.VESSEL or r.vessel is None:
+        return "ok"
+    findings = rules.fit_check(r.vessel, berth)
+    if not findings:
+        return "ok"
+    return "misfit" if findings[0].severity.value == "error" else "unknown"
+
+
 def load_json(load: DayLoad) -> dict:
     return {"berth_id": load.berth.id, "day": iso(load.day), "known_ft": load.known_ft, "unknown_count": load.unknown_count,
             "used_ft": load.used_ft, "capacity_ft": load.capacity_ft, "over_by_ft": load.over_by_ft,
             "over_capacity": load.over_capacity, "unverifiable": load.unverifiable,
-            "occupants": [reservation_json(r) for r in load.occupants]}
+            "occupants": [{**reservation_json(r), "fit": _fit(r, load.berth)} for r in load.occupants]}
 
 
 # ---------------------------------------------------------------- request bodies
@@ -166,6 +176,16 @@ def _judge(conn, candidate: Reservation, berth: Berth) -> CheckResult:
 
 
 # ---------------------------------------------------------------- routes
+@app.get("/api/meta")
+def get_meta(conn=Depends(get_db)) -> dict:
+    """What the front end needs to orient itself: mode, date span, totals."""
+    row = conn.execute("SELECT MIN(start_date) AS first_day, MAX(end_date) AS last_day, COUNT(*) AS n"
+                       " FROM reservations WHERE status <> 'cancelled'").fetchone()
+    stats = db.meta(conn, "import_stats") or {}
+    return {"mode": "api", "first_day": row["first_day"], "last_day": row["last_day"],
+            "reservations": row["n"], "totals": stats.get("totals", {}), "source": stats.get("source", "")}
+
+
 @app.get("/api/berths")
 def list_berths(conn=Depends(get_db)) -> list[dict]:
     return [berth_json(b) for b in db.berths(conn)]

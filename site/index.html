@@ -1,1 +1,134 @@
-<!doctype html><title>Dock Scheduler</title><p>UI coming in Phase 5. API docs at <a href="/docs">/docs</a>.</p>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dock Scheduler</title>
+<meta name="description" content="Berth reservations for a research waterfront: conflict and fit checking, 23 years of history, and a to-scale harbor view.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <h1>Dock Scheduler</h1>
+    <p class="tagline">Berths, vessels, and a referee that says why.</p>
+  </div>
+  <div class="mode" id="mode-badge" title="Where the data comes from">connecting…</div>
+</header>
+
+<nav class="tabs" role="tablist" aria-label="Views">
+  <button role="tab" data-view="grid" aria-selected="true">Grid</button>
+  <button role="tab" data-view="book">Book</button>
+  <button role="tab" data-view="harbor">Harbor</button>
+  <button role="tab" data-view="audit">Audit</button>
+  <button role="tab" data-view="issues">Issues</button>
+</nav>
+
+<main>
+  <section id="view-grid" class="view" role="tabpanel">
+    <div class="toolbar">
+      <button id="grid-prev" title="Previous month">◀</button>
+      <input type="month" id="grid-month" aria-label="Month">
+      <button id="grid-next" title="Next month">▶</button>
+      <span class="hint">Click a bar for details. Click an empty day to start a booking there.</span>
+    </div>
+    <div id="grid" class="grid" aria-live="polite"></div>
+    <div class="legend" id="grid-legend"></div>
+  </section>
+
+  <section id="view-book" class="view" hidden role="tabpanel">
+    <form id="book-form" class="book" autocomplete="off">
+      <p class="static-only" hidden>This is the read-only snapshot on GitHub Pages: booking runs the Python rules, so it needs the app running locally (three commands in the README).</p>
+      <div class="row">
+        <label>Kind
+          <select name="kind" id="book-kind">
+            <option value="vessel">Vessel</option>
+            <option value="event">Event (takes the whole berth)</option>
+            <option value="closure">Closure (nothing may use the berth)</option>
+          </select>
+        </label>
+        <label class="vessel-only">Vessel
+          <input list="vessel-options" id="book-vessel" placeholder="type a name…" required>
+          <datalist id="vessel-options"></datalist>
+        </label>
+        <label class="non-vessel-only" hidden>Title
+          <input id="book-title" placeholder="Community sail day">
+        </label>
+      </div>
+      <div class="row" id="vessel-facts" hidden>
+        <span id="vessel-summary"></span>
+        <label id="vessel-length-wrap" hidden>Length overall (ft)
+          <input type="number" id="vessel-length" min="1" step="1">
+          <button type="button" id="vessel-length-save">Save length</button>
+        </label>
+      </div>
+      <div class="row">
+        <label>Berth <select id="book-berth" required></select></label>
+        <label>From <input type="date" id="book-start" required></label>
+        <label>To (inclusive) <input type="date" id="book-end" required></label>
+      </div>
+      <div class="row">
+        <label class="wide">Notes <input id="book-notes" placeholder="optional"></label>
+      </div>
+      <div class="row actions">
+        <button type="button" id="book-check">Check</button>
+        <button type="button" id="book-suggest">Suggest a berth</button>
+        <button type="submit" id="book-save" class="primary">Save booking</button>
+      </div>
+      <div class="row" id="override-wrap" hidden>
+        <label class="wide">Override reason (saves despite the findings, and is kept on the record)
+          <input id="book-override" placeholder="e.g. rafting alongside, dockmaster approved">
+        </label>
+      </div>
+    </form>
+    <div id="book-result" class="result" aria-live="polite"></div>
+    <div id="book-suggestions" class="suggestions"></div>
+  </section>
+
+  <section id="view-harbor" class="view" hidden role="tabpanel">
+    <div class="toolbar">
+      <button id="harbor-prev" title="Previous day">◀</button>
+      <input type="date" id="harbor-day" aria-label="Day">
+      <button id="harbor-next" title="Next day">▶</button>
+      <button id="harbor-play" aria-pressed="false">▶ Play</button>
+      <span class="hint">One day per step. Hulls are drawn to scale; red means the referee found a conflict that day.</span>
+    </div>
+    <div class="harbor-layout">
+      <div id="harbor" class="harbor"></div>
+      <aside id="harbor-panel" class="panel" aria-live="polite"></aside>
+    </div>
+  </section>
+
+  <section id="view-audit" class="view" hidden role="tabpanel">
+    <div id="audit"></div>
+  </section>
+
+  <section id="view-issues" class="view" hidden role="tabpanel">
+    <div class="toolbar">
+      <label>Kind <select id="issues-kind"><option value="">all</option></select></label>
+      <span class="hint" id="issues-hint"></span>
+    </div>
+    <div id="issues"></div>
+  </section>
+</main>
+
+<div id="detail" class="detail" hidden role="dialog" aria-modal="true" aria-labelledby="detail-title">
+  <div class="detail-card">
+    <h2 id="detail-title"></h2>
+    <div id="detail-body"></div>
+    <div class="row actions">
+      <button type="button" id="detail-cancel" hidden>Cancel this reservation</button>
+      <button type="button" id="detail-close">Close</button>
+    </div>
+  </div>
+</div>
+
+<footer class="foot">
+  <span id="foot-note"></span>
+  <a href="https://github.com/broccolibabe0711/dock-scheduler">Source and decisions on GitHub</a>
+</footer>
+
+<script src="harbor.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,545 @@
+/* Dock Scheduler front end.
+ *
+ * Renders what the API (or, on GitHub Pages, the exported JSON snapshot)
+ * says. It never decides whether a booking is allowed: verdicts and findings
+ * come from dock/rules.py through the API, and the snapshot carries the
+ * flags the audit computed. The only arithmetic here is for drawing.
+ */
+(() => {
+  'use strict';
+
+  // ---------------------------------------------------------------- helpers
+  const $ = (sel, root = document) => root.querySelector(sel);
+  const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
+  const pad = (n) => String(n).padStart(2, '0');
+  const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+  function el(tag, attrs = {}, ...children) {
+    const node = document.createElement(tag);
+    for (const [key, value] of Object.entries(attrs)) {
+      if (value === null || value === undefined) continue;
+      if (key === 'class') node.className = value;
+      else if (key === 'text') node.textContent = value;
+      else if (key.startsWith('on')) node.addEventListener(key.slice(2), value);
+      else node.setAttribute(key, value);
+    }
+    for (const child of children.flat()) {
+      if (child === null || child === undefined) continue;
+      node.append(child.nodeType ? child : document.createTextNode(child));
+    }
+    return node;
+  }
+  const fmtFt = (n) => (n === null || n === undefined ? '?' : `${Number.isInteger(n) ? n : Number(n).toFixed(1)}'`);
+  const addDays = (iso, n) => { const d = new Date(`${iso}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+  const daysInMonth = (y, m) => new Date(Date.UTC(y, m, 0)).getUTCDate(); // m is 1-12
+  const monthRange = (ym) => { const [y, m] = ym.split('-').map(Number); const n = daysInMonth(y, m); return { y, m, n, start: `${ym}-01`, end: `${ym}-${pad(n)}` }; };
+  const weekday = (iso) => 'SMTWTFS'[new Date(`${iso}T00:00:00Z`).getUTCDay()];
+  const dayOf = (iso, ym) => (iso.slice(0, 7) === ym ? Number(iso.slice(8)) : (iso < ym ? -1e9 : 1e9));
+  function prefixClass(name) {
+    const m = /^(r\/v|m\/v|f\/v|s\/v|m\/y|s\/y|os\/v|osv|tug|barge)\b/i.exec(name || '');
+    return m ? `t-${m[1].toLowerCase().replace('/', '')}` : 't-other';
+  }
+  const post = (body) => ({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const patch = (body) => ({ method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+
+  // ---------------------------------------------------------------- data layer
+  // Same calls in both modes; the static mode answers from data/*.json.
+  const Data = {
+    mode: 'api',
+    meta: null,
+    cache: {},
+    async init() {
+      try {
+        const r = await fetch('api/meta');
+        if (!r.ok) throw new Error('no api');
+        this.meta = await r.json();
+        this.mode = 'api';
+      } catch (err) {
+        this.mode = 'static';
+        await this.loadStatic();
+      }
+      return this.meta;
+    },
+    async loadStatic() {
+      const get = async (name) => (await fetch(`data/${name}.json`)).json();
+      const [meta, berths, vessels, reservations, annotations, issues, audit, flags] = await Promise.all(
+        ['meta', 'berths', 'vessels', 'reservations', 'annotations', 'issues', 'audit', 'flags'].map(get));
+      this.meta = meta;
+      this.static = {
+        berths, vessels, reservations, annotations, issues, audit,
+        flags: {
+          misfits: new Set(flags.misfits),
+          unknown: new Set(flags.unknown_length),
+          over: new Set(flags.over_capacity_days.map((x) => `${x.berth_id}|${x.day}`)),
+          unverifiable: new Set(flags.unverifiable_days.map((x) => `${x.berth_id}|${x.day}`)),
+        },
+      };
+    },
+    async json(url, opts) {
+      const r = await fetch(url, opts);
+      const body = await r.json().catch(() => null);
+      if (!r.ok) { const e = new Error(`${r.status} ${r.statusText}`); e.status = r.status; e.body = body; throw e; }
+      return body;
+    },
+    async berths() {
+      if (this.mode === 'static') return this.static.berths;
+      if (!this.cache.berths) this.cache.berths = await this.json('api/berths');
+      return this.cache.berths;
+    },
+    async vessels(q) {
+      if (this.mode === 'static') { const k = q.toLowerCase(); return this.static.vessels.filter((v) => v.name.toLowerCase().includes(k)).slice(0, 50); }
+      return this.json(`api/vessels?q=${encodeURIComponent(q)}&limit=50`);
+    },
+    async reservations(start, end) {
+      if (this.mode === 'static') return this.static.reservations.filter((r) => r.start <= end && r.end >= start && r.status !== 'cancelled');
+      return this.json(`api/reservations?start=${start}&end=${end}`);
+    },
+    async loads(start, end) {
+      if (this.mode === 'static') return this.staticLoads(start, end);
+      return this.json(`api/loads?start=${start}&end=${end}`);
+    },
+    // The snapshot has no API to ask, so occupancy per day is assembled here from the
+    // reservations; the conflict flags still come from the audit the rules produced.
+    staticLoads(start, end) {
+      const { berths, flags } = this.static;
+      const inRange = this.static.reservations.filter((r) => r.start <= end && r.end >= start && r.status !== 'cancelled');
+      const out = [];
+      for (const b of berths) {
+        for (let day = start; day <= end; day = addDays(day, 1)) {
+          const occupants = inRange.filter((r) => r.berth_id === b.id && r.start <= day && r.end >= day)
+            .map((r) => ({ ...r, fit: flags.misfits.has(r.id) ? 'misfit' : (flags.unknown.has(r.id) ? 'unknown' : 'ok') }));
+          let known = 0, unknown = 0;
+          for (const o of occupants) {
+            if (o.kind !== 'vessel') { if (b.length_ft === null) unknown++; else known += b.length_ft; }
+            else if (o.length_ft === null || o.length_ft === undefined) unknown++;
+            else known += o.length_ft + b.clearance_ft;
+          }
+          out.push({
+            berth_id: b.id, day, known_ft: known, unknown_count: unknown, used_ft: unknown ? null : known,
+            capacity_ft: b.length_ft, over_by_ft: b.length_ft === null ? null : Math.max(0, known - b.length_ft),
+            over_capacity: flags.over.has(`${b.id}|${day}`), unverifiable: flags.unverifiable.has(`${b.id}|${day}`), occupants,
+          });
+        }
+      }
+      return out;
+    },
+    async audit() { return this.mode === 'static' ? this.static.audit : this.json('api/audit'); },
+    async issues(kind) {
+      if (this.mode === 'static') { const all = this.static.issues; return { counts: all.counts, issues: kind ? all.issues.filter((i) => i.kind === kind) : all.issues }; }
+      return this.json(`api/issues?limit=2000${kind ? `&kind=${encodeURIComponent(kind)}` : ''}`);
+    },
+    requireApi() { if (this.mode !== 'api') throw new Error('Booking needs the app running locally; this page is a read-only snapshot.'); },
+    async check(body) { this.requireApi(); return this.json('api/check', post(body)); },
+    async book(body) { this.requireApi(); return this.json('api/reservations', post(body)); },
+    async suggest(params) { this.requireApi(); return this.json(`api/suggest?${new URLSearchParams(params)}`); },
+    async patchReservation(id, body) { this.requireApi(); return this.json(`api/reservations/${id}`, patch(body)); },
+    async createVessel(body) { this.requireApi(); return this.json('api/vessels', post(body)); },
+    async patchVessel(id, body) { this.requireApi(); return this.json(`api/vessels/${id}`, patch(body)); },
+  };
+
+  // An occupant as the harbor module wants it, whichever mode produced it.
+  const occupantOf = (o) => ({
+    id: o.id, name: o.name, kind: o.kind, start: o.start, end: o.end, status: o.status, fit: o.fit || 'ok',
+    length_ft: o.length_ft !== undefined ? o.length_ft : (o.vessel ? o.vessel.length_ft : null),
+  });
+
+  // ---------------------------------------------------------------- state and navigation
+  const state = { berths: [], month: null, day: null, timer: null, harbor: null, loadsByMonth: new Map(), vessel: null, vesselHits: [] };
+
+  function showView(name) {
+    $$('.tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.view === name)));
+    $$('.view').forEach((v) => { v.hidden = v.id !== `view-${name}`; });
+    if (location.hash !== `#${name}`) history.replaceState(null, '', `#${name}`);
+    if (name === 'grid') renderGrid();
+    if (name === 'harbor') renderHarbor();
+    if (name === 'audit') renderAudit();
+    if (name === 'issues') renderIssues();
+  }
+
+  async function loadsForMonth(ym) {
+    if (!state.loadsByMonth.has(ym)) {
+      const { start, end } = monthRange(ym);
+      state.loadsByMonth.set(ym, await Data.loads(start, end));
+    }
+    return state.loadsByMonth.get(ym);
+  }
+  const forgetLoads = () => state.loadsByMonth.clear();
+
+  // ---------------------------------------------------------------- grid view
+  async function renderGrid() {
+    const ym = state.month;
+    const { y, m, n, start, end } = monthRange(ym);
+    $('#grid-month').value = ym;
+    const grid = $('#grid');
+    grid.replaceChildren(el('div', { class: 'empty', text: 'Loading…' }));
+    const [reservations, loads] = await Promise.all([Data.reservations(start, end), loadsForMonth(ym)]);
+    const loadIndex = new Map(loads.map((l) => [`${l.berth_id}|${l.day}`, l]));
+    const fitIndex = new Map();
+    for (const l of loads) for (const o of l.occupants) fitIndex.set(o.id, o.fit);
+
+    const table = el('div', { class: 'grid-table', style: `--days:${n}` });
+    const head = el('div', { class: 'grid-head' }, el('div', { text: `${MONTHS[m - 1]} ${y}` }));
+    for (let d = 1; d <= n; d++) {
+      const w = weekday(`${ym}-${pad(d)}`);
+      head.append(el('div', { class: `day${w === 'S' ? ' weekend' : ''}`, text: `${w}\n${d}` }));
+    }
+    table.append(head);
+
+    for (const b of state.berths) {
+      const row = el('div', { class: 'grid-row' });
+      row.append(el('div', { class: 'label' }, b.name, el('small', { text: b.length_ft ? `${fmtFt(b.length_ft)} · ${b.capacity_mode}` : `${b.capacity_mode}, length unknown` })));
+      const lanes = el('div', { class: 'lanes' });
+      const cells = el('div', { class: 'cells' });
+      for (let d = 1; d <= n; d++) {
+        const iso = `${ym}-${pad(d)}`;
+        const l = loadIndex.get(`${b.id}|${iso}`);
+        cells.append(el('div', {
+          class: `cell${l && l.over_capacity ? ' over' : ''}${l && l.unverifiable ? ' unverifiable' : ''}`,
+          title: l ? loadTitle(l, b) : '', onclick: () => startBooking(b, iso),
+        }));
+      }
+      const bars = el('div', { class: 'bars' });
+      const mine = reservations.filter((r) => r.berth_id === b.id).sort((a, c) => (a.start < c.start ? -1 : 1));
+      const laneEnds = [];
+      for (const r of mine) {
+        let lane = laneEnds.findIndex((e) => e < r.start);
+        if (lane < 0) { lane = laneEnds.length; laneEnds.push(r.end); } else laneEnds[lane] = r.end;
+        const s = Math.max(1, dayOf(r.start, ym)), e = Math.min(n, dayOf(r.end, ym));
+        const fit = fitIndex.get(r.id) || 'ok';
+        bars.append(el('div', {
+          class: `bar ${r.kind === 'vessel' ? prefixClass(r.name) : r.kind}${fit === 'misfit' ? ' misfit' : ''}${fit === 'unknown' ? ' unknown' : ''}${r.status === 'cancelled' ? ' cancelled' : ''}`,
+          style: `grid-column:${s} / ${e + 1};grid-row:${lane + 1}`, title: `${r.name} ${r.start}..${r.end}`, text: r.name,
+          onclick: (ev) => { ev.stopPropagation(); showDetail(r); },
+        }));
+      }
+      if (!mine.length) bars.style.minHeight = '28px';
+      lanes.append(cells, bars);
+      row.append(lanes);
+      table.append(row);
+    }
+    grid.replaceChildren(table);
+    renderLegend();
+  }
+
+  function loadTitle(l, b) {
+    if (!l.occupants.length) return `${b.name}: free`;
+    const names = l.occupants.map((o) => o.name).join(', ');
+    if (l.over_capacity) return `${b.name} over capacity: ${names}`;
+    if (l.unverifiable) return `${b.name}: ${names} (a length is missing, cannot verify)`;
+    return `${b.name}: ${names}${l.used_ft !== null && l.capacity_ft ? ` (${fmtFt(l.used_ft)} of ${fmtFt(l.capacity_ft)})` : ''}`;
+  }
+
+  function renderLegend() {
+    const items = [['t-rv', 'R/V research'], ['t-mv', 'M/V motor'], ['t-fv', 'F/V fishing'], ['t-sv', 'S/V sail'], ['t-my', 'M/Y yacht'], ['t-osv', 'OSV'], ['t-tug', 'Tug'], ['t-barge', 'Barge'], ['event', 'event (whole berth)'], ['closure', 'closure']];
+    const legend = $('#grid-legend');
+    legend.replaceChildren(...items.map(([cls, label]) => el('span', {}, el('i', { class: `swatch bar ${cls}` }), label)),
+      el('span', {}, el('i', { class: 'swatch', style: 'box-shadow: inset 0 -3px 0 var(--bad)' }), 'day over capacity'),
+      el('span', {}, el('i', { class: 'swatch', style: 'box-shadow: inset 0 -3px 0 var(--unknown)' }), 'shared, a length missing'),
+      el('span', {}, el('i', { class: 'swatch bar', style: 'border:2px solid var(--bad);background:none' }), 'vessel longer than berth'));
+  }
+
+  // ---------------------------------------------------------------- booking view
+  function startBooking(berth, iso) {
+    $('#book-berth').value = berth.id;
+    $('#book-start').value = iso;
+    $('#book-end').value = iso;
+    showView('book');
+    $('#book-vessel').focus();
+  }
+
+  function kindChanged() {
+    const kind = $('#book-kind').value;
+    $$('.vessel-only').forEach((n) => { n.hidden = kind !== 'vessel'; });
+    $$('.non-vessel-only').forEach((n) => { n.hidden = kind === 'vessel'; });
+    $('#book-vessel').required = kind === 'vessel';
+  }
+
+  let vesselSearchTimer = null;
+  function vesselTyped() {
+    const q = $('#book-vessel').value.trim();
+    clearTimeout(vesselSearchTimer);
+    vesselSearchTimer = setTimeout(async () => {
+      state.vesselHits = q ? await Data.vessels(q) : [];
+      $('#vessel-options').replaceChildren(...state.vesselHits.map((v) => el('option', { value: v.name, text: v.length_ft ? fmtFt(v.length_ft) : 'length unknown' })));
+      vesselChosen();
+    }, 150);
+  }
+
+  function vesselChosen() {
+    const name = $('#book-vessel').value.trim().toLowerCase();
+    state.vessel = state.vesselHits.find((v) => v.name.toLowerCase() === name) || null;
+    const facts = $('#vessel-facts');
+    facts.hidden = !name;
+    if (!name) return;
+    if (state.vessel) {
+      $('#vessel-summary').textContent = state.vessel.length_ft
+        ? `${state.vessel.name}: ${fmtFt(state.vessel.length_ft)}${state.vessel.operator ? `, ${state.vessel.operator}` : ''}${state.vessel.rafts_ok ? ', will raft alongside' : ''}`
+        : `${state.vessel.name}: length not on file. The referee will answer UNKNOWN until it is entered.`;
+      $('#vessel-length-wrap').hidden = !!state.vessel.length_ft;
+    } else {
+      $('#vessel-summary').textContent = `"${$('#book-vessel').value.trim()}" is not in the registry yet; it will be created with the length you enter.`;
+      $('#vessel-length-wrap').hidden = false;
+    }
+  }
+
+  async function saveVesselLength() {
+    const ft = Number($('#vessel-length').value);
+    if (!(ft > 0)) { alert('Enter the length overall in feet.'); return; }
+    try {
+      if (state.vessel) state.vessel = await Data.patchVessel(state.vessel.id, { length_ft: ft });
+      else { state.vessel = await Data.createVessel({ name: $('#book-vessel').value.trim(), length_ft: ft }); }
+      state.vesselHits = [state.vessel];
+      forgetLoads();
+      vesselChosen();
+    } catch (err) { showError(err); }
+  }
+
+  async function ensureVessel() {
+    if ($('#book-kind').value !== 'vessel') return null;
+    if (state.vessel) return state.vessel;
+    const name = $('#book-vessel').value.trim();
+    if (!name) throw new Error('Choose or type a vessel name.');
+    const ft = Number($('#vessel-length').value) || null;
+    state.vessel = await Data.createVessel({ name, length_ft: ft });
+    state.vesselHits = [state.vessel];
+    vesselChosen();
+    return state.vessel;
+  }
+
+  async function bookingBody() {
+    const vessel = await ensureVessel();
+    return {
+      berth_id: Number($('#book-berth').value), kind: $('#book-kind').value, vessel_id: vessel ? vessel.id : null,
+      title: $('#book-title').value.trim(), start: $('#book-start').value, end: $('#book-end').value,
+      notes: $('#book-notes').value.trim(), override_reason: $('#book-override').value.trim() || null,
+    };
+  }
+
+  function renderResult(result, lead) {
+    const box = $('#book-result');
+    const verdictText = { ok: 'OK: every rule passed with real numbers.', conflict: 'CONFLICT: the booking breaks a rule.', unknown: 'UNKNOWN: a length the rules need is missing.' }[result.verdict] || result.verdict;
+    box.replaceChildren(
+      lead ? el('p', { text: lead }) : null,
+      el('div', { class: `verdict ${result.verdict}`, text: verdictText }),
+      el('ul', { class: 'findings' }, ...result.findings.map((f) => el('li', { class: f.severity },
+        el('div', { class: 'code', text: `${f.severity} · ${f.code.replace(/_/g, ' ')}${f.day ? ` · ${f.day}` : ''}` }),
+        el('div', { text: f.message })))));
+    $('#override-wrap').hidden = !result.blocking;
+  }
+
+  function showError(err) {
+    const box = $('#book-result');
+    const detail = err.body && err.body.detail;
+    if (detail && detail.findings) { renderResult(detail, 'Not saved.'); return; }
+    box.replaceChildren(el('div', { class: 'verdict conflict', text: typeof detail === 'string' ? detail : (err.message || String(err)) }));
+  }
+
+  async function checkBooking() {
+    try { renderResult(await Data.check(await bookingBody()), 'Checked, not saved:'); $('#book-suggestions').replaceChildren(); }
+    catch (err) { showError(err); }
+  }
+
+  async function saveBooking(ev) {
+    ev.preventDefault();
+    try {
+      const body = await bookingBody();
+      const out = await Data.book(body);
+      forgetLoads();
+      renderResult(out.check, `Saved as reservation #${out.reservation.id} (${out.reservation.start}..${out.reservation.end}).`);
+      $('#book-override').value = '';
+      $('#book-result').append(el('p', {}, el('button', { type: 'button', text: 'See it in the grid', onclick: () => { state.month = out.reservation.start.slice(0, 7); showView('grid'); } })));
+    } catch (err) { showError(err); }
+  }
+
+  async function suggestBerths() {
+    try {
+      const body = await bookingBody();
+      const params = { start: body.start, end: body.end, kind: body.kind, title: body.title || 'requested booking', include_unknown: 'true' };
+      if (body.vessel_id) params.vessel_id = body.vessel_id;
+      const out = await Data.suggest(params);
+      const box = $('#book-suggestions');
+      if (!out.length) { box.replaceChildren(el('p', { class: 'empty', text: 'No berth is free for those dates without a conflict.' })); return; }
+      box.replaceChildren(el('h3', { text: 'Where it could go, smallest fitting berth first' }), ...out.map((s) => el('div', { class: 'suggestion' },
+        el('div', {}, el('strong', { text: s.berth.name }), ` ${s.berth.length_ft ? fmtFt(s.berth.length_ft) : 'length unknown'} · ${s.check.verdict.toUpperCase()}`,
+          s.check.findings.length ? el('div', { class: 'hint', text: s.check.findings.map((f) => f.message).join(' ') }) : null),
+        el('button', { type: 'button', text: 'Use this berth', onclick: () => { $('#book-berth').value = s.berth.id; checkBooking(); } }))));
+    } catch (err) { showError(err); }
+  }
+
+  // ---------------------------------------------------------------- harbor view
+  async function renderHarbor() {
+    const host = $('#harbor');
+    if (!window.Harbor) { host.replaceChildren(el('div', { class: 'empty', text: 'harbor.js did not load.' })); return; }
+    if (!state.harbor) {
+      state.harbor = window.Harbor.create(host, { onSelect: (o) => showDetail(o) });
+      state.harbor.setBerths(state.berths);
+    }
+    $('#harbor-day').value = state.day;
+    const loads = (await loadsForMonth(state.day.slice(0, 7))).filter((l) => l.day === state.day);
+    const byBerth = {};
+    const flags = { overCapacity: new Set(), unverifiable: new Set(), misfits: new Set(), unknownLength: new Set() };
+    for (const l of loads) {
+      byBerth[l.berth_id] = l.occupants.map(occupantOf);
+      if (l.over_capacity) flags.overCapacity.add(l.berth_id);
+      if (l.unverifiable) flags.unverifiable.add(l.berth_id);
+      for (const o of l.occupants) { if (o.fit === 'misfit') flags.misfits.add(o.id); if (o.fit === 'unknown') flags.unknownLength.add(o.id); }
+    }
+    state.harbor.setDay(state.day, byBerth, flags);
+    renderHarborPanel(loads);
+  }
+
+  function renderHarborPanel(loads) {
+    const berthById = new Map(state.berths.map((b) => [b.id, b]));
+    const problems = [], lines = [];
+    for (const l of loads) {
+      const b = berthById.get(l.berth_id);
+      if (!b) continue;
+      const names = l.occupants.map((o) => `${o.name} (${fmtFt(occupantOf(o).length_ft)})`).join(' + ');
+      if (l.occupants.length) lines.push(el('li', {}, el('strong', { text: b.name }), `: ${names}`, l.capacity_ft && l.used_ft !== null ? ` — ${fmtFt(l.used_ft)} of ${fmtFt(l.capacity_ft)} with clearance` : ''));
+      if (l.over_capacity) problems.push(el('li', { class: 'bad' }, `${b.name} over capacity: ${names}${l.capacity_ft ? ` = ${l.unknown_count ? 'at least ' : ''}${fmtFt(l.known_ft)} > ${fmtFt(l.capacity_ft)}` : ''}`));
+      else if (l.unverifiable) problems.push(el('li', { class: 'unknown' }, `${b.name} is shared and a length is missing, so it cannot be verified.`));
+      for (const o of l.occupants) {
+        const len = occupantOf(o).length_ft;
+        if (o.fit === 'misfit' && b.length_ft) problems.push(el('li', { class: 'bad' }, `${o.name} (${fmtFt(len)}) exceeds ${b.name} (${fmtFt(b.length_ft)}) by ${fmtFt(len - b.length_ft)}.`));
+        if (o.fit === 'unknown') problems.push(el('li', { class: 'unknown' }, `${o.name}: length not on file, fit unknown.`));
+      }
+    }
+    $('#harbor-panel').replaceChildren(
+      el('h3', { text: state.day }),
+      el('h4', { text: 'Findings' }), problems.length ? el('ul', {}, ...problems) : el('p', { class: 'ok', text: 'No conflicts today.' }),
+      el('h4', { text: 'Occupancy' }), lines.length ? el('ul', {}, ...lines) : el('p', { class: 'empty', text: 'Empty harbor.' }));
+  }
+
+  function stepDay(n) {
+    const next = addDays(state.day, n);
+    if (Data.meta && Data.meta.last_day && next > addDays(Data.meta.last_day, 365)) { stopPlaying(); return; }
+    state.day = next;
+    renderHarbor();
+  }
+  function stopPlaying() { clearInterval(state.timer); state.timer = null; const b = $('#harbor-play'); b.textContent = '▶ Play'; b.setAttribute('aria-pressed', 'false'); }
+  function togglePlay() {
+    if (state.timer) { stopPlaying(); return; }
+    const b = $('#harbor-play'); b.textContent = '❚❚ Pause'; b.setAttribute('aria-pressed', 'true');
+    state.timer = setInterval(() => stepDay(1), 500);
+  }
+
+  // ---------------------------------------------------------------- audit view
+  const stat = (n, label) => el('div', { class: 'stat' }, el('div', { class: 'n', text: String(n) }), el('div', { class: 'l', text: label }));
+  const table = (headers, rows) => el('table', { class: 'data' }, el('thead', {}, el('tr', {}, ...headers.map((h) => el('th', { text: h })))),
+    el('tbody', {}, ...rows.map((r) => el('tr', {}, ...r.map((c) => el('td', {}, c))))));
+
+  async function renderAudit() {
+    const host = $('#audit');
+    host.replaceChildren(el('div', { class: 'empty', text: 'Loading…' }));
+    let a;
+    try { a = await Data.audit(); } catch (err) { host.replaceChildren(el('div', { class: 'empty', text: 'No audit loaded yet.' })); return; }
+    const t = a.totals, c = a.audit_counts;
+    host.replaceChildren(
+      el('p', {}, 'The rules that guard the booking form, run over the whole imported history. ',
+        el('a', { href: 'https://github.com/broccolibabe0711/dock-scheduler/blob/main/docs/AUDIT_REPORT.md', text: 'Full report' }), '.'),
+      el('div', { class: 'stat-grid' },
+        stat(`${a.years[0]}–${a.years[a.years.length - 1]}`, 'years covered'), stat(t.raw_stays, 'cell runs read from the grids'),
+        stat(t.reservations, `reservations (${a.stitched} stitched across months)`), stat(t.annotations, 'notes kept as annotations, not bookings'),
+        stat(`${a.vessel_stays_with_length} / ${a.vessel_stays}`, 'vessel stays with a known length'), stat(c.over_capacity_days, 'berth-days over capacity'),
+        stat(c.misfits, 'vessels longer than their berth'), stat(c.unverifiable_days, 'shared days that cannot be verified'),
+        stat(c.closure_conflicts, 'stays overlapping a closure'), stat(t.issues, 'issues logged instead of guessed')),
+      el('h2', { text: 'Over-capacity runs' }),
+      a.over_capacity.length ? table(['Berth', 'Days', 'Occupants', 'Used', 'Capacity'], a.over_capacity.map((r) => [r.berth, r.start === r.end ? r.start : `${r.start}..${r.end}`,
+        r.occupants.map((o) => `${o.name} (${fmtFt(o.length_ft)})`).join(', '), fmtFt(r.used_ft), fmtFt(r.capacity_ft)])) : el('p', { class: 'empty', text: 'None: the legacy grid could not put two names in one cell, so within-row double bookings do not exist in it.' }),
+      el('h2', { text: 'Vessels that do not fit their berth' }),
+      a.misfits.length ? table(['Vessel', 'Berth', 'Dates', 'Finding'], a.misfits.map((m) => [m.reservation.name, m.berth, `${m.reservation.start}..${m.reservation.end}`, m.message])) : el('p', { class: 'empty', text: 'None among stays with a known length.' }),
+      el('h2', { text: 'Stays overlapping a closure' }),
+      a.closure_conflicts.length ? table(['Closure', 'Berth', 'Closure days', 'Displaced', 'Their days'], a.closure_conflicts.map((x) => [x.closure, x.berth, x.closure_days, x.displaced, x.displaced_days])) : el('p', { class: 'empty', text: 'None.' }),
+      el('h2', { text: "The workbook's own summary vs. the grids (usage-days)" }),
+      table(['Berth', ...a.summary_years.map(String)], a.summary_comparison.map((r) => [r.berth, ...r.summary.map((s, i) => `${s === null ? '–' : s} / ${r.ours[i]}`)])),
+      el('p', { class: 'hint', text: 'sheet value / what the grids contain. The summary cannot be reproduced from the grids; it is reference material, not ground truth.' }),
+      el('h2', { text: 'What the importer logged instead of guessing' }),
+      table(['Issue', 'Count', 'Examples'], Object.entries(a.issues_by_kind).map(([k, n]) => [k, String(n), el('div', {}, ...(a.issue_examples[k] || []).map((e) => el('div', { class: 'hint', text: e })))])));
+  }
+
+  // ---------------------------------------------------------------- issues view
+  async function renderIssues() {
+    const kind = $('#issues-kind').value;
+    const host = $('#issues');
+    host.replaceChildren(el('div', { class: 'empty', text: 'Loading…' }));
+    const data = await Data.issues(kind);
+    const select = $('#issues-kind');
+    if (select.options.length <= 1) {
+      for (const [k, n] of Object.entries(data.counts)) select.append(el('option', { value: k, text: `${k} (${n})` }));
+    }
+    const rows = data.issues.slice(0, 500);
+    $('#issues-hint').textContent = `${data.issues.length} issue(s)${data.issues.length > 500 ? ', first 500 shown' : ''}. Each one is something the importer noticed and did not silently fix.`;
+    host.replaceChildren(el('div', { class: 'issues-wrap' }, table(['Sheet', 'Cell', 'Severity', 'Kind', 'What'], rows.map((i) => [i.sheet, i.cell, i.severity, i.kind, i.message]))));
+  }
+
+  // ---------------------------------------------------------------- detail dialog
+  function showDetail(r) {
+    const berth = state.berths.find((b) => b.id === r.berth_id);
+    const len = occupantOf(r).length_ft;
+    $('#detail-title').textContent = r.name || r.title;
+    $('#detail-body').replaceChildren(el('dl', {},
+      el('dt', { text: 'Kind' }), el('dd', { text: r.kind }),
+      el('dt', { text: 'Berth' }), el('dd', { text: berth ? `${berth.name}${berth.length_ft ? ` (${fmtFt(berth.length_ft)})` : ''}` : String(r.berth_id) }),
+      el('dt', { text: 'Length' }), el('dd', { text: r.kind === 'vessel' ? fmtFt(len) : 'whole berth' }),
+      el('dt', { text: 'Dates' }), el('dd', { text: `${r.start} to ${r.end} (${r.days || (Math.round((new Date(r.end) - new Date(r.start)) / 864e5) + 1)} days, inclusive)` }),
+      el('dt', { text: 'Status' }), el('dd', { text: r.status || 'confirmed' }),
+      r.override_reason ? el('dt', { text: 'Override' }) : null, r.override_reason ? el('dd', { text: r.override_reason }) : null,
+      el('dt', { text: 'Source' }), el('dd', { text: r.legacy_ref ? `imported from ${r.legacy_ref}` : (r.source || 'manual') }),
+      r.notes ? el('dt', { text: 'Notes' }) : null, r.notes ? el('dd', { text: r.notes }) : null));
+    const cancel = $('#detail-cancel');
+    cancel.hidden = !(Data.mode === 'api' && r.status !== 'cancelled' && r.id);
+    cancel.onclick = async () => {
+      try { await Data.patchReservation(r.id, { status: 'cancelled' }); forgetLoads(); closeDetail(); showView(currentView()); }
+      catch (err) { alert(err.message); }
+    };
+    $('#detail').hidden = false;
+  }
+  const closeDetail = () => { $('#detail').hidden = true; };
+  const currentView = () => ($$('.tabs button').find((b) => b.getAttribute('aria-selected') === 'true') || {}).dataset?.view || 'grid';
+
+  // ---------------------------------------------------------------- init
+  async function init() {
+    const meta = await Data.init();
+    const badge = $('#mode-badge');
+    badge.textContent = Data.mode === 'api' ? 'live · SQLite behind the API' : `read-only snapshot · ${meta.generated_on}`;
+    badge.classList.toggle('static', Data.mode === 'static');
+    $('#foot-note').textContent = `${meta.reservations || (meta.totals && meta.totals.reservations) || ''} reservations from ${meta.first_day || '?'} to ${meta.last_day || '?'}${Data.mode === 'static' ? '. ' + meta.note : ''}`;
+    state.berths = await Data.berths();
+    const last = meta.last_day || '2019-12-31';
+    state.month = last.slice(0, 7);
+    state.day = last;
+
+    $('#book-berth').replaceChildren(...state.berths.map((b) => el('option', { value: b.id, text: b.length_ft ? `${b.name} (${fmtFt(b.length_ft)}, ${b.capacity_mode})` : `${b.name} (${b.capacity_mode})` })));
+    $('#book-start').value = last; $('#book-end').value = last;
+    $$('.tabs button').forEach((b) => b.addEventListener('click', () => showView(b.dataset.view)));
+    $('#grid-prev').onclick = () => { const { y, m } = monthRange(state.month); state.month = m === 1 ? `${y - 1}-12` : `${y}-${pad(m - 1)}`; renderGrid(); };
+    $('#grid-next').onclick = () => { const { y, m } = monthRange(state.month); state.month = m === 12 ? `${y + 1}-01` : `${y}-${pad(m + 1)}`; renderGrid(); };
+    $('#grid-month').onchange = (e) => { if (e.target.value) { state.month = e.target.value; renderGrid(); } };
+    $('#book-kind').onchange = kindChanged;
+    $('#book-vessel').oninput = vesselTyped;
+    $('#book-vessel').onchange = vesselChosen;
+    $('#vessel-length-save').onclick = saveVesselLength;
+    $('#book-check').onclick = checkBooking;
+    $('#book-suggest').onclick = suggestBerths;
+    $('#book-form').onsubmit = saveBooking;
+    $('#harbor-prev').onclick = () => { stopPlaying(); stepDay(-1); };
+    $('#harbor-next').onclick = () => { stopPlaying(); stepDay(1); };
+    $('#harbor-day').onchange = (e) => { if (e.target.value) { stopPlaying(); state.day = e.target.value; renderHarbor(); } };
+    $('#harbor-play').onclick = togglePlay;
+    $('#issues-kind').onchange = renderIssues;
+    $('#detail-close').onclick = closeDetail;
+    $('#detail').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeDetail(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDetail(); });
+    if (Data.mode === 'static') {
+      $$('.static-only').forEach((n) => { n.hidden = false; });
+      ['#book-check', '#book-suggest', '#book-save', '#vessel-length-save'].forEach((s) => { $(s).disabled = true; });
+    }
+    kindChanged();
+    showView(['grid', 'book', 'harbor', 'audit', 'issues'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'grid');
+  }
+
+  init().catch((err) => {
+    $('#mode-badge').textContent = 'failed to load';
+    $('#grid').replaceChildren(el('div', { class: 'empty', text: `Could not load data: ${err.message}` }));
+  });
+})();
