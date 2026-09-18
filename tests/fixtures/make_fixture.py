@@ -97,8 +97,20 @@ def build(path: str | Path) -> Path:
     ws = wb.create_sheet("2010")
     r = _era_b_block(ws, 1, "OCTOBER 2010", 31)
     ws.cell(r, 2, "OSV Clear Osprey")
-    r = _era_b_block(ws, 12, "NOVEMBER 2018", 30)
-    ws.cell(r + 3, 4, "Tug Blue Fathom")  # should land in November 2010
+    # the real 2010 sheet: the true "1 2 3 4 5 6" sits on the row ABOVE the header (day 1 in D),
+    # the header's first cells hold vessel names, and its day numbers resume at 7 one column early
+    for i in range(6):
+        ws.cell(11, 4 + i, i + 1)
+    ws.cell(12, 1, "NOVEMBER 2018")
+    ws.cell(12, 2, "F/V Junk One")
+    ws.cell(12, 3, "M/V Junk Two")
+    for i, day in enumerate(range(7, 31)):
+        ws.cell(12, 9 + i, day)
+    for i in range(30):
+        ws.cell(13, 4 + i, WEEKDAYS[i % 7])
+    for j, name in enumerate(BERTHS):
+        ws.cell(14 + j, 1, name)
+    ws.cell(17, 6, "Tug Blue Fathom")  # column F = day 3 by the explicit row (day 4 by the header)
 
     # ---- era C: 2014 with group rows, an event, a duplicate berth row
     ws = wb.create_sheet("2014")
@@ -132,6 +144,7 @@ def build(path: str | Path) -> Path:
     ws.append(["Date", "Time", "Guide", "Guest", "People", "Dock/ Ship", "Notes"])
     ws.append([43219, 1530, "Avery", "Finley Ingram (Regional Fisheries Agency)", "~6", "R/V Silver Tern", "Confirmed"])
     ws.append([43222, "tbd", "Jesse", "Morgan Ransom (Harbor Institute)", 4, "R/V Blue Heron", ""])
+    ws.append(["Requires shore power"])  # a stray fragment with no date
 
     path = Path(path)
     wb.save(path)

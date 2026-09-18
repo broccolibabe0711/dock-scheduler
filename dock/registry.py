@@ -98,11 +98,19 @@ class RegistryEntry:
 
 
 def _is_vessel_cell(text: str) -> bool:
-    return bool(_PREFIX_RE.match(text) or _LEN_RE.search(text) or _LOA_RE.search(text))
+    """A row starts a vessel when its first cell names one: a type prefix, or a
+    trailing length mark that is not just an "LOA: 145', Draft: 12'" spec."""
+    if _PREFIX_RE.match(text):
+        return True
+    if _LOA_RE.search(text) or _DRAFT_RE.search(text):
+        return False  # a spec line belongs to the vessel above it
+    return bool(_LEN_RE.search(text))
 
 
-def read_registry(workbook) -> list[RegistryEntry]:
-    """Walk the registry sheets of an openpyxl workbook and group rows into vessels."""
+def read_registry(workbook, issues: list[str] | None = None) -> list[RegistryEntry]:
+    """Walk the registry sheets of an openpyxl workbook and group rows into vessels.
+
+    Rows that cannot be attached to any vessel are reported in `issues`."""
     entries: list[RegistryEntry] = []
     for sheet_name in REGISTRY_SHEETS:
         if sheet_name not in workbook.sheetnames:
@@ -121,9 +129,12 @@ def read_registry(workbook) -> list[RegistryEntry]:
                 rest = cells[1:]
             else:
                 rest = cells  # a continuation row: every cell belongs to the vessel above
-            if current is not None:
-                for cell in rest:
-                    current.add(cell)
+            if current is None:
+                if issues is not None:
+                    issues.append(f"{sheet_name} row {row_index} has no vessel above it to belong to: {' | '.join(c for c in cells if c)}")
+                continue
+            for cell in rest:
+                current.add(cell)
     return entries
 
 
@@ -131,11 +142,11 @@ def _start_entry(sheet: str, row: int, raw: str) -> RegistryEntry:
     entry = RegistryEntry(sheet=sheet, row=row, raw_name=raw)
     named = vessel_name(re.sub(_LEN_RE, "", raw))
     if named is None:
-        # "LOA: 145', Draft: 12'" in the name column: a spec with no name
-        entry.unnamed = True
-        entry.add(raw)
-        return entry
-    entry.type_prefix, entry.name = named
+        # a trailing length but no recognised prefix: keep the name as written
+        stripped = re.sub(_LEN_RE, "", raw).strip()
+        entry.type_prefix, entry.name = "other", stripped
+    else:
+        entry.type_prefix, entry.name = named
     entry.key = name_key(entry.name)
     m = _LEN_RE.search(raw)
     if m:
@@ -146,23 +157,23 @@ def _start_entry(sheet: str, row: int, raw: str) -> RegistryEntry:
 def registry_vessels(entries: Iterable[RegistryEntry]) -> tuple[list[Vessel], list[str]]:
     """Collapse entries into one Vessel per name.
 
-    When two entries disagree on the length, the vessel keeps NO length and
-    the disagreement is returned as an issue, because guessing which is right
+    A vessel's length may be written after its name ("R/V High Drift 120'")
+    or as an "LOA: 65'" spec on the same row. When those, or two rows for
+    the same vessel, disagree, the vessel keeps NO length and the
+    disagreement is returned as an issue, because guessing which is right
     would defeat the fit check.
     """
     by_key: dict[str, list[RegistryEntry]] = {}
     for e in entries:
-        if e.unnamed:
-            continue
         by_key.setdefault(e.key, []).append(e)
     vessels: list[Vessel] = []
     issues: list[str] = []
     for key, group in by_key.items():
-        lengths = sorted({e.length_ft for e in group if e.length_ft is not None})
+        lengths = sorted({x for e in group for x in (e.length_ft, e.loa_ft) if x is not None})
         length = lengths[0] if len(lengths) == 1 else None
         if len(lengths) > 1:
-            where = "; ".join(f"{e.sheet} row {e.row} ({e.raw_name})" for e in group)
-            issues.append(f"{group[0].name}: registry lengths disagree {lengths}; left unknown. {where}")
+            where = "; ".join(f"{e.sheet} row {e.row} ({e.raw_name}{f', LOA {e.loa_ft:g}' if e.loa_ft else ''})" for e in group)
+            issues.append(f"{group[0].name}: registry lengths disagree {[f'{x:g}' for x in lengths]}; left unknown. {where}")
         operators = [o for e in group for o in e.operators]
         notes = [n for e in group for n in e.notes]
         flags = set().union(*(e.flags for e in group))

@@ -62,6 +62,18 @@ def test_a_mislabelled_month_is_moved_to_its_sheet_year(tiny):
     assert any(i.kind == "mislabelled_month" and i.sheet == "2010" for i in tiny.issues)
 
 
+def test_the_explicit_day_one_row_wins_and_the_disagreement_is_logged(tiny):
+    # the header row implies day 1 in column C; the row above says D; D is used and the conflict logged
+    [conflict] = [i for i in tiny.issues if i.kind == "day_row_conflict"]
+    assert "day 1 at D" in conflict.message and "day 1 at C" in conflict.message and "using row 11" in conflict.message
+    assert sum(1 for i in tiny.issues if i.kind == "header_junk") == 2  # the two vessel names in the header
+
+
+def test_a_tour_row_without_a_date_is_logged_not_dropped(tiny):
+    [issue] = [i for i in tiny.issues if i.kind == "unreadable_tour_row"]
+    assert "Requires shore power" in issue.message and len(tiny.tours) == 2
+
+
 def test_group_rows_are_berths_without_a_length(tiny):
     finger = next(b for b in tiny.berths if b.name == "North Finger Piers")
     assert finger.length_ft is None and finger.active_from == date(2014, 1, 1)
@@ -89,10 +101,12 @@ def test_the_real_sample_matches_the_data_study():
     sources = {}
     for s in r.raw_stays:
         sources[s.source] = sources.get(s.source, 0) + 1
-    # The Ruby study counted 847 single / 733 fill runs; one cell's fill reads
-    # differently through openpyxl. Everything else agrees exactly.
-    assert len(r.raw_stays) == 2244 and sources == {"single": 846, "fill_run": 734, "merge": 607, "repeat": 57}
-    assert r.stats["totals"]["reservations"] == 1984 and r.stats["stitched"] == 122
+    # The Ruby study counted 2,244 cell runs including 78 outside the day columns;
+    # those are logged, not read, and the damaged 2010 blocks now use their
+    # explicit day-1 row, which moves a few runs. Everything else agrees.
+    assert len(r.raw_stays) == 2164 and sources == {"single": 785, "fill_run": 732, "merge": 591, "repeat": 56}
+    assert r.stats["totals"]["reservations"] == 1982 and r.stats["stitched"] == 122
+    assert r.issue_counts()["cell_outside_day_columns"] == 80 and r.issue_counts()["day_row_conflict"] == 2
     assert [b.name for b in r.berths] == [
         "North Pier West", "North Pier Face", "North Pier East", "Inner Channel",
         "South Float West", "South Float East", "Small craft slips (institution boats)", "North Finger Piers",

@@ -8,17 +8,17 @@ these numbers are the same `dock/rules.py` functions that check every new bookin
 | What | Value |
 |---|---|
 | Years covered | 1997–2019 |
-| Cell runs read from the grids | 2244 |
-| Reservations after stitching month-split stays | 1984 (122 stitched) |
-| Of which vessel / event / closure | 1929 / 33 / 22 |
-| Notes kept as annotations, not bookings | 48 |
-| Distinct vessels (grid and registries) | 575, 162 with a known length |
-| Vessel stays whose vessel has a known length | 34 of 1929 |
+| Cell runs read from the grids | 2164 |
+| Reservations after stitching month-split stays | 1982 (122 stitched) |
+| Of which vessel / event / closure | 1927 / 33 / 22 |
+| Notes kept as annotations, not bookings | 46 |
+| Distinct vessels (grid and registries) | 575, 158 with a known length |
+| Vessel stays whose vessel has a known length | 33 of 1927 |
 | Berth-days over capacity | 0 |
 | Vessels assigned to a berth shorter than themselves | 9 |
 | Shared berth-days that cannot be verified (a length is missing) | 12 |
 | Stays overlapping a closure | 1 |
-| Issues the importer logged instead of guessing | 545 |
+| Issues the importer logged instead of guessing | 476 |
 
 ## What "over capacity" means here
 
@@ -61,8 +61,8 @@ is unknown the day is *unverifiable*, never silently fine.
 |---|---|---|---|---|---|---|---|---|
 | Marsh Landing | 64 / 0 | 118 / 0 | 67 / 0 | 88 / 0 | 89 / 0 | 118 / 0 | 116 / 0 | 120 / 0 |
 | North Finger Piers | 348 / 0 | 431 / 0 | 298 / 0 | 434 / 0 | 363 / 0 | 415 / 0 | 511 / 0 | 334 / 0 |
-| North Pier East | 85 / 89 | 176 / 179 | 51 / 47 | 36 / 60 | 112 / 75 | 85 / 69 | 78 / 62 | 631 / 196 |
-| North Pier Face | 0 / 7 | 3 / 4 | 3 / 4 | 16 / 31 | 29 / 49 | 6 / 44 | 3 / 12 | 21 / 33 |
+| North Pier East | 85 / 89 | 176 / 179 | 51 / 47 | 36 / 60 | 112 / 74 | 85 / 69 | 78 / 62 | 631 / 196 |
+| North Pier Face | 0 / 7 | 3 / 4 | 3 / 4 | 16 / 31 | 29 / 48 | 6 / 45 | 3 / 12 | 21 / 33 |
 | North Pier West | 127 / 128 | 219 / 365 | 116 / 196 | 193 / 135 | 136 / 167 | 337 / 141 | 648 / 185 | 470 / 213 |
 | South Float East | 12 / 23 | 25 / 35 | 20 / 27 | 113 / 80 | 74 / 115 | 17 / 62 | 138 / 109 | 62 / 85 |
 | South Float West | 3 / 4 | 1 / 32 | 5 / 96 | 23 / 17 | 66 / 102 | 67 / 71 | 26 / 23 | 37 / 108 |
@@ -89,7 +89,7 @@ reference material, not as ground truth.
 | 2007 | 44 |
 | 2008 | 44 |
 | 2009 | 92 |
-| 2010 | 153 |
+| 2010 | 151 |
 | 2011 | 148 |
 | 2012 | 48 |
 | 2013 | 94 |
@@ -105,14 +105,14 @@ reference material, not as ground truth.
 | Issue | Count | Examples |
 |---|---|---|
 | `unlabelled_row_text` | 334 | 1997!P21: 'R/V Amber Tide' in a row with no berth label under block 'SEPTEMBER 1997'; not imported<br>2002!F64: 'OSV Golden Tern' in a row with no berth label under block 'MAY 2002'; not imported<br>2002!F75: 'OSV Golden Tern' in a row with no berth label under block 'JUNE 2002'; not imported |
-| `cell_outside_day_columns` | 78 | 2009!AF65: 'R/V CORAL TERN' sits outside the day columns of 'JUNE 2009' (day 31); not imported<br>2010!AF44: 'R/V Grey Kestrel' sits outside the day columns of 'APRIL 2010' (day 31); not imported<br>2010!B121: 'R/V Golden Horizon' sits outside the day columns of 'NOVEMBER 2018' (day 0); not imported |
-| `invalid_date` | 76 | 2009!AF65: 'R/V CORAL TERN' in 'JUNE 2009' has no valid date (day 31); not imported<br>2010!AF44: 'R/V Grey Kestrel' in 'APRIL 2010' has no valid date (day 31); not imported<br>2010!B121: 'R/V Golden Horizon' in 'NOVEMBER 2018' has no valid date (day 0); not imported |
+| `cell_outside_day_columns` | 80 | 2009!AF65: 'R/V CORAL TERN' sits past the 30 days of the month of 'JUNE 2009' (day 31); not imported<br>2010!AF44: 'R/V Grey Kestrel' sits past the 30 days of the month of 'APRIL 2010' (day 31); not imported<br>2010!B121: 'R/V Golden Horizon' sits before day 1 of 'NOVEMBER 2018' (day -1); not imported |
 | `duplicate_berth_row` | 27 | 1998!A93: 'North Pier West - 410'' appears on rows [92, 93] of block 'SEPTEMBER 1998': two occupants written on separate rows<br>2014!A76: 'Small craft slips (institution boats)' appears on rows [75, 76] of block 'June': two occupants written on separate rows<br>2014!A88: 'Small craft slips (institution boats)' appears on rows [87, 88] of block 'July': two occupants written on separate rows |
 | `header_junk` | 12 | 2010!C117: 'F/V GREY STRAND' written in a header row of block 'NOVEMBER 2018'; not imported<br>2010!D117: 'M/V SILVER HORIZON' written in a header row of block 'NOVEMBER 2018'; not imported<br>2010!E117: 'OSV CLEAR OSPREY' written in a header row of block 'NOVEMBER 2018'; not imported |
+| `registry_length_conflict` | 6 | Science/Yachts: R/V High Sound: registry lengths disagree ['32', '65']; left unknown. Science row 33 (R/V High Sound 32', LOA 65)<br>Science/Yachts: R/V High Reef: registry lengths disagree ['32', '72']; left unknown. Science row 92 (R/V High Reef 32'); Science row 207 (R/V High Reef 72')<br>Science/Yachts: Barge Northern Marlin: registry lengths disagree ['24', '65']; left unknown. Science row 136 (Barge NORTHERN MARLIN 24', LOA 65) |
 | `header_days_mismatch` | 5 | 2008!A61: block 'JUNE 2008' lists 31 days but the month has 30; the calendar wins<br>2009!A17: block 'FEBRUARY 2009' lists 29 days but the month has 28; the calendar wins<br>2011!A28: block 'MARCH 2011' lists 29 days but the month has 31; the calendar wins |
 | `merge_beyond_month` | 3 | 2009!AD63: 'M/V NORTHERN HARBOR' is merged 1 column(s) past the last day of 'JUNE 2009'; cut at the month end<br>2014!B8: 'R/V GOLDEN COMPASS' is merged 3 column(s) past the last day of 'January'; cut at the month end<br>2016!AF23: 'Touch and go' is merged 2 column(s) past the last day of 'February'; cut at the month end |
 | `duplicate_block` | 3 | 2002: block 'DECEMBER 2001' repeats a month already read from another sheet; its 7 cell(s) were not imported<br>2003: block 'DECEMBER 2002' repeats a month already read from another sheet; its 4 cell(s) were not imported<br>2004: block 'DECEMBER 2003' repeats a month already read from another sheet; its 3 cell(s) were not imported |
-| `registry_length_conflict` | 2 | Science/Yachts: R/V High Reef: registry lengths disagree [32.0, 72.0]; left unknown. Science row 92 (R/V High Reef 32'); Science row 207 (R/V High Reef 72')<br>Science/Yachts: M/V Deep Reef: registry lengths disagree [24.0, 100.0]; left unknown. Yachts row 96 (M/V Deep Reef 24'); Yachts row 114 (M/V Deep Reef 100') |
 | `mislabelled_month` | 2 | 2010!A117: block 'NOVEMBER 2018' sits on the 2010 sheet; imported as 2010-11<br>2010!A128: block 'DECEMBER 2018' sits on the 2010 sheet; imported as 2010-12 |
-| `day_row_not_from_1` | 2 | 2010!A117: block 'NOVEMBER 2018' numbers its days 7..30; day 1 placed at column C<br>2010!A128: block 'DECEMBER 2018' numbers its days 7..31; day 1 placed at column B |
+| `day_row_conflict` | 2 | 2010!D116: rows disagree about where day 1 is: row 116 (days 1..6, day 1 at D); row 117 (days 7..30, day 1 at C); using row 116<br>2010!E127: rows disagree about where day 1 is: row 127 (days 1..6, day 1 at E); row 128 (days 7..31, day 1 at B); using row 127 |
 | `multi_row_merge` | 1 | 2014!G124: merged range for 'Barge Grey Sound' spans rows 124..125; read on row 124 only |
+| `unreadable_tour_row` | 1 | Tours!A18: row has no readable date: Requires shore power; not imported |

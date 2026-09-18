@@ -192,9 +192,10 @@ def insert_vessel(conn: sqlite3.Connection, v: Vessel) -> Vessel:
     return Vessel(v.name, v.length_ft, v.type_prefix, v.draft_ft, v.operator, v.rafts_ok, v.notes, id=cur.lastrowid)
 
 
-def update_vessel(conn: sqlite3.Connection, vessel_id: int, **fields) -> Vessel | None:
+def update_vessel(conn: sqlite3.Connection, vessel_id: int, fields: dict) -> Vessel | None:
+    """Apply the given fields; a None value clears the column (length back to unknown)."""
     allowed = {"name", "length_ft", "draft_ft", "type_prefix", "operator", "rafts_ok", "notes"}
-    changes = {k: v for k, v in fields.items() if k in allowed and v is not None}
+    changes = {k: v for k, v in fields.items() if k in allowed}
     if "name" in changes:
         changes["name_key"] = name_key(changes["name"])
     if "rafts_ok" in changes:

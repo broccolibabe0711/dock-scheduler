@@ -18,13 +18,13 @@ Numbers from `python -m dock.audit` on the sample workbook:
 | | |
 |---|---|
 | Month grids read | 272 blocks across 23 sheets, three layout eras |
-| Cell runs read | 2,244; a third have end dates inferred from cell colouring |
-| Reservations after stitching month-split stays | 1,984 (122 stitched) |
-| Notes kept as annotations, not bookings | 48 ("ETA 1200", "Fuel truck"…) |
-| Vessel names, after case normalisation | 504 in the grids; only 34 of 1,929 vessel stays have a known length |
+| Cell runs read | 2,244 (80 sat outside a block's day columns and were logged, not read); a third have end dates inferred from cell colouring |
+| Reservations after stitching month-split stays | 1,982 (122 stitched) |
+| Notes kept as annotations, not bookings | 46 ("ETA 1200", "Fuel truck"…) |
+| Vessel names, after case normalisation | 504 in the grids; only 33 of 1,927 vessel stays have a known length |
 | Vessels longer than the berth they were given | 9 |
 | Stays over a closed berth | 1 |
-| Anomalies logged instead of silently fixed | 545 (mislabelled months, merges past the month end, duplicated rows, text in header rows…) |
+| Anomalies logged instead of silently fixed | 476 (mislabelled months, merges past the month end, duplicated rows, text in header rows…) |
 
 The grid could never put two names in one cell, so it contains no within-row double bookings; where two vessels shared a face, operators inserted a second row with the same berth label. That is why the model uses linear capacity instead of one vessel per berth.
 
@@ -44,7 +44,7 @@ python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt
 
 Open <http://127.0.0.1:8000>. The sample workbook is imported into `dock.db` on first start. The interactive API documentation is at <http://127.0.0.1:8000/docs>: try `POST /api/check` with a 120-foot vessel on the 75-foot North Pier Face and read the refusal.
 
-Tests (95, in under two seconds):
+Tests (92, in under two seconds):
 
 ```bash
 .venv/bin/python -m pytest -q

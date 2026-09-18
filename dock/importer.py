@@ -207,33 +207,58 @@ class _DayRow:
     length: int
 
 
-def _find_day_row(grid: _Grid, header_row: int) -> _DayRow | None:
-    """The row holding the day numbers: the longest run of consecutive
-    integers (or '=...+1' formulas) in the header row or the two below it.
-    The day-1 column is derived from wherever the run starts, so a block
-    whose numbers begin at 7 still gets the right column for day 1."""
+def _day_run(grid: _Grid, r: int) -> _DayRow | None:
+    """The longest run of consecutive integers (or '=...+1' formulas) in one row."""
     best: _DayRow | None = None
-    for r in range(header_row, min(header_row + 2, grid.max_row) + 1):
-        c = 2
-        while c <= grid.max_col:
-            v = grid.value(r, c)
-            if _is_int(v):
-                start, first = c, int(v)
-                expect = last = first
-                while c <= grid.max_col:
-                    v2 = grid.value(r, c)
-                    if _is_int(v2) and int(v2) == expect:
-                        last, expect, c = expect, expect + 1, c + 1
-                    elif _is_formula(v2) and re.search(r"\+\s*1\)?$", v2):
-                        last, expect, c = expect, expect + 1, c + 1
-                    else:
-                        break
-                length = last - first + 1
-                if best is None or length > best.length:
-                    best = _DayRow(r, start - (first - 1), first, last, length)
-            else:
-                c += 1
+    c = 2
+    while c <= grid.max_col:
+        v = grid.value(r, c)
+        if _is_int(v):
+            start, first = c, int(v)
+            expect = last = first
+            while c <= grid.max_col:
+                v2 = grid.value(r, c)
+                if _is_int(v2) and int(v2) == expect:
+                    last, expect, c = expect, expect + 1, c + 1
+                elif _is_formula(v2) and re.search(r"\+\s*1\)?$", v2):
+                    last, expect, c = expect, expect + 1, c + 1
+                else:
+                    break
+            length = last - first + 1
+            if best is None or length > best.length:
+                best = _DayRow(r, start - (first - 1), first, last, length)
+        else:
+            c += 1
     return best if best is not None and best.length >= 3 else None
+
+
+def _find_day_row(grid: _Grid, header_row: int, lower_bound: int, result: ImportResult) -> _DayRow | None:
+    """The row holding the day numbers.
+
+    Usually the header row or one of the two below it. In the two damaged
+    2010 blocks the header's first day cells were overwritten with vessel
+    names and the real "1 2 3 ..." sits on the row ABOVE the header, so that
+    row is scanned too (never past the previous block). A run that starts at
+    1 is trusted over a longer run that only implies where 1 would be, and
+    when candidate rows disagree about the day-1 column the choice is logged.
+    """
+    candidates: list[_DayRow] = []
+    for r in range(max(header_row - 1, lower_bound), min(header_row + 2, grid.max_row) + 1):
+        run = _day_run(grid, r)
+        if run is not None:
+            candidates.append(run)
+    if not candidates:
+        return None
+    explicit = [c for c in candidates if c.first == 1]
+    pool = explicit or candidates
+    chosen = max(pool, key=lambda c: (c.length, -abs(c.row - header_row)))
+    chosen = _DayRow(chosen.row, chosen.day1_col, chosen.first, max(c.last for c in candidates), chosen.length)
+    others = {c.day1_col for c in candidates if c.day1_col != chosen.day1_col}
+    if others:
+        where = "; ".join(f"row {c.row} (days {c.first}..{c.last}, day 1 at {get_column_letter(c.day1_col)})" for c in candidates)
+        result.issue("day_row_conflict", "warning", grid.name, grid.ref(chosen.row, chosen.day1_col),
+                     f"rows disagree about where day 1 is: {where}; using row {chosen.row}")
+    return chosen
 
 
 def _parse_berth_label(label: str) -> tuple[str, float | None]:
@@ -244,10 +269,25 @@ def _parse_berth_label(label: str) -> tuple[str, float | None]:
 
 
 def _days_in_month(year: int, month: int) -> int:
-    try:
-        return calendar.monthrange(year, month)[1]
-    except ValueError:
-        return 31
+    return calendar.monthrange(year, month)[1]
+
+
+@dataclass
+class _Block:
+    """One month block of a year sheet, once its header has been understood."""
+
+    sheet: str
+    label: str
+    year: int
+    month: int
+    day1_col: int
+    header_days: int  # how many days the header lists
+    cal_days: int  # how many the calendar has; the calendar wins
+    header_rows: list[int]
+
+    @property
+    def last_col(self) -> int:
+        return self.day1_col + max(self.header_days, self.cal_days) - 1
 
 
 def _read_year_sheet(grid: _Grid, sheet_year: int, result: ImportResult) -> None:
@@ -259,6 +299,7 @@ def _read_year_sheet(grid: _Grid, sheet_year: int, result: ImportResult) -> None
 
     for k, h in enumerate(header_rows_all):
         stop = header_rows_all[k + 1] if k + 1 < len(header_rows_all) else grid.max_row + 1
+        lower_bound = header_rows_all[k - 1] + 1 if k > 0 else 1
         label = grid.text(h, 1)
         m = MONTH_RE.match(label)
         assert m is not None
@@ -266,30 +307,25 @@ def _read_year_sheet(grid: _Grid, sheet_year: int, result: ImportResult) -> None
         block_year = int(m.group(2)) if m.group(2) else sheet_year
         if block_year > sheet_year:
             # the 2010 sheet ends with "NOVEMBER 2018" / "DECEMBER 2018"; they follow October 2010
-            result.issue(
-                "mislabelled_month", "warning", sheet, grid.ref(h, 1),
-                f"block '{label}' sits on the {sheet_year} sheet; imported as {block_year and sheet_year}-{block_month:02d}",
-            )
+            result.issue("mislabelled_month", "warning", sheet, grid.ref(h, 1),
+                         f"block '{label}' sits on the {sheet_year} sheet; imported as {sheet_year}-{block_month:02d}")
             block_year = sheet_year
         cal_days = _days_in_month(block_year, block_month)
 
-        day_row = _find_day_row(grid, h)
+        day_row = _find_day_row(grid, h, lower_bound, result)
         if day_row is not None:
-            day1_col, last_day, day_row_index = day_row.day1_col, day_row.last, day_row.row
+            day1_col, header_days, day_row_index = day_row.day1_col, day_row.last, day_row.row
             if day_row.first != 1:
-                result.issue(
-                    "day_row_not_from_1", "info", sheet, grid.ref(day_row.row, 1),
-                    f"block '{label}' numbers its days {day_row.first}..{day_row.last}; day 1 placed at column {get_column_letter(day1_col)}",
-                )
+                result.issue("day_row_not_from_1", "info", sheet, grid.ref(day_row.row, 1),
+                             f"block '{label}' numbers its days {day_row.first}..{day_row.last}; day 1 placed at column {get_column_letter(day1_col)}")
         else:
-            day1_col, last_day, day_row_index = (3 if m.group(2) is None else 2), cal_days, None
+            day1_col, header_days, day_row_index = (3 if m.group(2) is None else 2), cal_days, None
             result.issue("day_row_missing", "warning", sheet, grid.ref(h, 1),
                          f"block '{label}' has no row of day numbers; day 1 assumed at column {get_column_letter(day1_col)}")
-        last_col = day1_col + last_day - 1
-        if last_day != cal_days:
+        if header_days != cal_days:
             result.issue("header_days_mismatch", "warning", sheet, grid.ref(h, 1),
-                         f"block '{label}' lists {last_day} days but the month has {cal_days}; the calendar wins")
-        stats["blocks"].append(f"{label} [day1={get_column_letter(day1_col)}, {last_day}d]")
+                         f"block '{label}' lists {header_days} days but the month has {cal_days}; the calendar wins")
+        stats["blocks"].append(f"{label} [day1={get_column_letter(day1_col)}, {header_days}d]")
 
         header_rows = []
         for r in (h, h + 1, h + 2):
@@ -300,6 +336,7 @@ def _read_year_sheet(grid: _Grid, sheet_year: int, result: ImportResult) -> None
             ) >= 5
             if r == h or r == day_row_index or is_weekday_row:
                 header_rows.append(r)
+        block = _Block(sheet, label, block_year, block_month, day1_col, header_days, cal_days, header_rows)
         for r in header_rows:
             for c in range(2, grid.max_col + 1):
                 v = grid.value(r, c)
@@ -332,14 +369,16 @@ def _read_year_sheet(grid: _Grid, sheet_year: int, result: ImportResult) -> None
             elif berth_name not in CANONICAL_BERTHS:
                 result.issue("unexpected_berth_label", "warning", sheet, grid.ref(r, 1),
                              f"row label '{a}' is not one of the known berths")
-            _read_berth_row(grid, r, a, h, label, block_year, block_month, day1_col, last_day, last_col, sheet, stats, result)
+            _read_berth_row(grid, r, a, block, stats, result)
         for lab, rows in seen_labels.items():
             if len(rows) > 1:
                 result.issue("duplicate_berth_row", "info", sheet, grid.ref(rows[1], 1),
                              f"'{lab}' appears on rows {rows} of block '{label}': two occupants written on separate rows")
 
 
-def _read_berth_row(grid, r, berth_label, h, block, block_year, block_month, day1_col, last_day, last_col, sheet, stats, result):
+def _read_berth_row(grid: _Grid, r: int, berth_label: str, block: _Block, stats: dict, result: ImportResult) -> None:
+    """Turn the cells of one berth row into raw stays, one per run of cells."""
+    sheet, last_col = block.sheet, block.last_col
     c = 2
     while c <= grid.max_col:
         v = grid.value(r, c)
@@ -352,7 +391,7 @@ def _read_berth_row(grid, r, berth_label, h, block, block_year, block_month, day
             continue
         text = _text(v)
         stats["candidates"] += 1
-        start_day = c - day1_col + 1
+        start_day = c - block.day1_col + 1
         fill = grid.fill(r, c)
         end_col, source = c, SPAN_SINGLE
         merge = grid.merge_at.get((r, c))
@@ -365,7 +404,7 @@ def _read_berth_row(grid, r, berth_label, h, block, block_year, block_month, day
                              f"merged range for '{text}' spans rows {r}..{max_row}; read on row {r} only")
             if end_col > last_col:
                 result.issue("merge_beyond_month", "warning", sheet, grid.ref(r, c),
-                             f"'{text}' is merged {end_col - last_col} column(s) past the last day of '{block}'; cut at the month end")
+                             f"'{text}' is merged {end_col - last_col} column(s) past the last day of '{block.label}'; cut at the month end")
                 end_col = max(last_col, c)
         elif fill:
             e = c
@@ -375,20 +414,27 @@ def _read_berth_row(grid, r, berth_label, h, block, block_year, block_month, day
                 source, end_col = SPAN_FILL, e
         if source == SPAN_SINGLE:
             e = c
-            while e + 1 <= grid.max_col and grid.value(r, e + 1) == v:
+            while e + 1 <= last_col and grid.value(r, e + 1) == v:
                 e += 1
             if e > c:
                 source, end_col = SPAN_REPEAT, e
-        end_day = end_col - day1_col + 1
-        if start_day < 1 or start_day > last_day:
+        next_c = end_col + 1
+        if start_day < 1 or start_day > block.cal_days:
             stats["outside"] += 1
+            where = "before day 1" if start_day < 1 else f"past the {block.cal_days} days of the month"
             result.issue("cell_outside_day_columns", "warning", sheet, grid.ref(r, c),
-                         f"'{text}' sits outside the day columns of '{block}' (day {start_day}); not imported")
-        result.raw_stays.append(RawStay(sheet, block, block_year, block_month, berth_label, r, c,
-                                        start_day, end_day, last_day, source, text))
+                         f"'{text}' sits {where} of '{block.label}' (day {start_day}); not imported")
+            c = next_c
+            continue
+        if start_day > block.header_days:
+            result.issue("beyond_header_days", "info", sheet, grid.ref(r, c),
+                         f"'{text}' is on day {start_day}, which the header of '{block.label}' does not list but the calendar has; imported")
+        end_day = min(end_col - block.day1_col + 1, block.cal_days)
+        result.raw_stays.append(RawStay(sheet, block.label, block.year, block.month, berth_label, r, c,
+                                        start_day, end_day, block.header_days, source, text))
         stats["records"] += 1
         stats["sources"][source] = stats["sources"].get(source, 0) + 1
-        c = end_col + 1
+        c = next_c
 
 
 # ---------------------------------------------------------------- assembling the model
@@ -453,16 +499,19 @@ def _read_usage_summary(wb, result: ImportResult) -> None:
 def _read_tours(wb, result: ImportResult) -> None:
     if "Tours" not in wb.sheetnames:
         return
-    for row in wb["Tours"].iter_rows(values_only=True):
+    for row_index, row in enumerate(wb["Tours"].iter_rows(values_only=True), start=1):
         cells = list(row) + [None] * 7
         raw_date, raw_time, guide, guest, people, vessel, notes = cells[:7]
-        day: date | None
+        texts = [_text(c) for c in cells[:7] if c is not None and _text(c)]
         if isinstance(raw_date, datetime):
             day = raw_date.date()
         elif _is_number(raw_date):
             day = date(1899, 12, 30) + timedelta(days=int(raw_date))  # Excel's 1900 date system
         else:
-            continue  # banner, header or stray rows
+            if texts and _text(raw_date).lower() != "date" and "separate workbook" not in " ".join(texts).lower():
+                result.issue("unreadable_tour_row", "info", "Tours", f"A{row_index}",
+                             f"row has no readable date: {' | '.join(texts)}; not imported")
+            continue  # banner or header rows carry no tour
         guest_text = _text(guest)
         m = re.match(r"^(.*?)\s*\(([^)]*)\)\s*$", guest_text)
         people_text = _text(people) if not _is_number(people) else str(int(people))
@@ -481,8 +530,11 @@ def import_workbook(path: str | Path) -> ImportResult:
     result = ImportResult()
 
     # 1. registries: the only source of vessel lengths
-    entries = read_registry(wb)
+    registry_issues: list[str] = []
+    entries = read_registry(wb, registry_issues)
     registry, conflicts = registry_vessels(entries)
+    for text in registry_issues:
+        result.issue("registry_row_unplaced", "warning", "Science/Yachts", "", text)
     for text in conflicts:
         result.issue("registry_length_conflict", "warning", "Science/Yachts", "", text)
     vessel_by_key: dict[str, Vessel] = {v.key: v for v in registry}
@@ -538,18 +590,16 @@ def import_workbook(path: str | Path) -> ImportResult:
         berth = berth_by_name[_parse_berth_label(stay.berth_label)[0]]
         try:
             start = date(stay.block_year, stay.block_month, stay.start_day)
-            end = date(stay.block_year, stay.block_month, min(stay.end_day, _days_in_month(stay.block_year, stay.block_month)))
+            end = date(stay.block_year, stay.block_month, max(stay.start_day, stay.end_day))
         except ValueError:
-            start = end = None
+            result.issue("invalid_date", "warning", stay.sheet, f"{get_column_letter(stay.col)}{stay.row}",
+                         f"'{stay.text}' in '{stay.block}' has no valid date (day {stay.start_day}); not imported")
+            continue
         if cls.kind in (CellKind.NOTE, CellKind.OTHER):
             result.annotations.append(Annotation(berth.id, start, stay.text, cls.label, ref))
             if cls.kind is CellKind.OTHER:
                 result.issue("unclassified_text", "warning", stay.sheet, f"{get_column_letter(stay.col)}{stay.row}",
                              f"'{stay.text}' did not match any known vessel, event, closure or note; kept as an annotation")
-            continue
-        if start is None or end is None or end < start:
-            result.issue("invalid_date", "warning", stay.sheet, f"{get_column_letter(stay.col)}{stay.row}",
-                         f"'{stay.text}' in '{stay.block}' has no valid date (day {stay.start_day}); not imported")
             continue
         if cls.kind is CellKind.VESSEL:
             key = name_key(cls.label)

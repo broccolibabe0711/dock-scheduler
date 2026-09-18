@@ -15,10 +15,10 @@ def entries():
     return read_registry(wb)
 
 
-def test_every_named_entry_has_a_length(entries):
-    named = [e for e in entries if not e.unnamed]
-    assert len(entries) == 168 and len(named) == 166
-    assert all(e.length_ft is not None for e in named)
+def test_every_entry_is_a_named_vessel_with_a_length(entries):
+    # the two "LOA: 145', Draft: 12'" rows fold into the vessel above instead of starting a phantom one
+    assert len(entries) == 166 and not any(e.unnamed for e in entries)
+    assert all(e.length_ft is not None for e in entries)
 
 
 def test_a_known_vessel_reads_correctly(entries):
@@ -37,9 +37,10 @@ def test_fragments_fold_into_the_vessel_above(entries):
 def test_conflicting_lengths_leave_the_vessel_unknown(entries):
     vessels, issues = registry_vessels(entries)
     by_name = {v.name: v for v in vessels}
-    assert by_name["R/V High Reef"].length_ft is None
+    assert by_name["R/V High Reef"].length_ft is None  # 32' vs 72' on two rows
     assert by_name["M/V Deep Reef"].length_ft is None
-    assert len(issues) == 2 and len(vessels) == 164
+    assert by_name["R/V High Sound"].length_ft is None  # 32' after the name vs "LOA: 65'" on the same row
+    assert len(issues) == 6 and len(vessels) == 164
 
 
 def test_notes_become_flags(entries):

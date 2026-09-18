@@ -17,26 +17,27 @@
 </header>
 
 <nav class="tabs" role="tablist" aria-label="Views">
-  <button role="tab" data-view="grid" aria-selected="true">Grid</button>
-  <button role="tab" data-view="book">Book</button>
-  <button role="tab" data-view="harbor">Harbor</button>
-  <button role="tab" data-view="audit">Audit</button>
-  <button role="tab" data-view="issues">Issues</button>
+  <button role="tab" id="tab-grid" aria-controls="view-grid" data-view="grid" aria-selected="true">Grid</button>
+  <button role="tab" id="tab-book" aria-controls="view-book" data-view="book" aria-selected="false" tabindex="-1">Book</button>
+  <button role="tab" id="tab-harbor" aria-controls="view-harbor" data-view="harbor" aria-selected="false" tabindex="-1">Harbor</button>
+  <button role="tab" id="tab-audit" aria-controls="view-audit" data-view="audit" aria-selected="false" tabindex="-1">Audit</button>
+  <button role="tab" id="tab-issues" aria-controls="view-issues" data-view="issues" aria-selected="false" tabindex="-1">Issues</button>
 </nav>
 
 <main>
-  <section id="view-grid" class="view" role="tabpanel">
+  <section id="view-grid" class="view" role="tabpanel" aria-labelledby="tab-grid">
     <div class="toolbar">
-      <button id="grid-prev" title="Previous month">◀</button>
-      <input type="month" id="grid-month" aria-label="Month">
-      <button id="grid-next" title="Next month">▶</button>
-      <span class="hint">Click a bar for details. Click an empty day to start a booking there.</span>
+      <button id="grid-prev" aria-label="Previous month" title="Previous month">◀</button>
+      <input type="month" id="grid-month" aria-label="Month" pattern="\d{4}-(0[1-9]|1[0-2])">
+      <button id="grid-next" aria-label="Next month" title="Next month">▶</button>
+      <span class="hint">Click a bar for details. Click an empty day to start a booking there (or use the Book tab).</span>
     </div>
-    <div id="grid" class="grid" aria-live="polite"></div>
+    <div id="grid" class="grid"></div>
     <div class="legend" id="grid-legend"></div>
+    <p class="sr-only" id="grid-status" aria-live="polite"></p>
   </section>
 
-  <section id="view-book" class="view" hidden role="tabpanel">
+  <section id="view-book" class="view" hidden role="tabpanel" aria-labelledby="tab-book">
     <form id="book-form" class="book" autocomplete="off">
       <p class="static-only" hidden>This is the read-only snapshot on GitHub Pages: booking runs the Python rules, so it needs the app running locally (three commands in the README).</p>
       <div class="row">
@@ -85,11 +86,11 @@
     <div id="book-suggestions" class="suggestions"></div>
   </section>
 
-  <section id="view-harbor" class="view" hidden role="tabpanel">
+  <section id="view-harbor" class="view" hidden role="tabpanel" aria-labelledby="tab-harbor">
     <div class="toolbar">
-      <button id="harbor-prev" title="Previous day">◀</button>
+      <button id="harbor-prev" aria-label="Previous day" title="Previous day">◀</button>
       <input type="date" id="harbor-day" aria-label="Day">
-      <button id="harbor-next" title="Next day">▶</button>
+      <button id="harbor-next" aria-label="Next day" title="Next day">▶</button>
       <button id="harbor-play" aria-pressed="false">▶ Play</button>
       <span class="hint">One day per step. Hulls are drawn to scale; red means the referee found a conflict that day.</span>
     </div>
@@ -99,11 +100,11 @@
     </div>
   </section>
 
-  <section id="view-audit" class="view" hidden role="tabpanel">
+  <section id="view-audit" class="view" hidden role="tabpanel" aria-labelledby="tab-audit">
     <div id="audit"></div>
   </section>
 
-  <section id="view-issues" class="view" hidden role="tabpanel">
+  <section id="view-issues" class="view" hidden role="tabpanel" aria-labelledby="tab-issues">
     <div class="toolbar">
       <label>Kind <select id="issues-kind"><option value="">all</option></select></label>
       <span class="hint" id="issues-hint"></span>
@@ -112,7 +113,7 @@
   </section>
 </main>
 
-<div id="detail" class="detail" hidden role="dialog" aria-modal="true" aria-labelledby="detail-title">
+<dialog id="detail" class="detail" aria-labelledby="detail-title">
   <div class="detail-card">
     <h2 id="detail-title"></h2>
     <div id="detail-body"></div>
@@ -121,7 +122,7 @@
       <button type="button" id="detail-close">Close</button>
     </div>
   </div>
-</div>
+</dialog>
 
 <footer class="foot">
   <span id="foot-note"></span>

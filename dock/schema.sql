@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS reservations (
     source          TEXT    NOT NULL DEFAULT 'manual' CHECK (source IN ('manual', 'import')),
     legacy_ref      TEXT,
     notes           TEXT    NOT NULL DEFAULT '',
-    created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
+    created_at      TEXT    NOT NULL DEFAULT (datetime('now')),  -- UTC; every other date is a plain calendar day
     CHECK ((kind = 'vessel') = (vessel_id IS NOT NULL)),
     CHECK (kind = 'vessel' OR title <> '')
 );

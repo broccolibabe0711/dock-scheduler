@@ -2,7 +2,7 @@
   --bg: #f6f8fa; --panel: #ffffff; --ink: #1c2430; --muted: #5b6673; --line: #d5dbe2;
   --accent: #1f6feb; --accent-ink: #ffffff;
   --ok: #1a7f37; --warn: #9a6700; --bad: #c62828; --unknown: #b35c00;
-  --rv: #2b6cb0; --mv: #d97706; --fv: #0e9aa7; --sv: #b7950b; --my: #7c3aed; --sy: #a16207;
+  --rv: #2b6cb0; --mv: #b45309; --fv: #0f766e; --sv: #92400e; --my: #7c3aed; --sy: #a16207;
   --osv: #6d28d9; --tug: #15803d; --barge: #be185d; --other: #64748b;
   --event: repeating-linear-gradient(45deg, #94a3b8 0 4px, transparent 4px 8px);
   --closure: repeating-linear-gradient(135deg, #6b7280 0 3px, #d1d5db 3px 6px);
@@ -13,6 +13,8 @@
     --bg: #0f141a; --panel: #171e27; --ink: #e6edf3; --muted: #9aa7b5; --line: #2c3743;
     --accent: #58a6ff; --accent-ink: #0b1220;
     --ok: #3fb950; --warn: #d29922; --bad: #ff6b6b; --unknown: #f0883e;
+    --event: repeating-linear-gradient(45deg, #475569 0 4px, transparent 4px 8px);
+    --closure: repeating-linear-gradient(135deg, #64748b 0 3px, #1f2937 3px 6px);
   }
 }
 :root[data-theme="dark"] {
@@ -53,7 +55,7 @@ label > input, label > select { color: var(--ink); }
 .grid-head { position: sticky; top: 0; background: var(--panel); z-index: 1; font-size: .75rem; color: var(--muted); }
 .grid-head div, .grid-row .cell { text-align: center; padding: 2px 0; border-left: 1px solid var(--line); }
 .grid-head .day.weekend { background: color-mix(in srgb, var(--line) 35%, transparent); }
-.grid-row .label { padding: 6px 8px; font-size: .85rem; border-left: 0; text-align: left; position: sticky; left: 0; background: var(--panel); }
+.grid-row .label { padding: 6px 8px; font-size: .85rem; border-left: 0; text-align: left; position: sticky; left: 0; background: var(--panel); z-index: 2; }
 .grid-row .label small { display: block; color: var(--muted); }
 .grid-row .lanes { grid-column: 2 / -1; position: relative; min-height: 30px; }
 .grid-row .cells { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(var(--days), minmax(22px, 1fr)); }
@@ -61,12 +63,14 @@ label > input, label > select { color: var(--ink); }
 .grid-row .cell.over { box-shadow: inset 0 -3px 0 var(--bad); }
 .grid-row .cell.unverifiable { box-shadow: inset 0 -3px 0 var(--unknown); }
 .grid-row .cell:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
-.grid-row .bars { position: relative; display: grid; grid-template-columns: repeat(var(--days), minmax(22px, 1fr)); grid-auto-rows: 26px; gap: 2px 0; pointer-events: none; }
+/* .cells sits behind .bars: the cells layer is absolute, the bars layer is relative and later in the DOM, so bars paint on top and empty-day clicks fall through to the cells */
+.grid-row .bars { position: relative; display: grid; grid-template-columns: repeat(var(--days), minmax(22px, 1fr)); grid-auto-rows: 30px; pointer-events: none; }
 .grid-row .bar { pointer-events: auto; }
 .grid-head .day { white-space: pre; }
-.bar { margin: 2px 1px; border-radius: 4px; padding: 0 6px; font-size: .78rem; line-height: 22px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #fff; cursor: pointer; border: 2px solid transparent; }
-.bar.event { background: var(--event); color: var(--ink); }
-.bar.closure { background: var(--closure); color: var(--ink); }
+.bar { display: block; width: auto; margin: 2px 1px; border-radius: 4px; padding: 0 6px; font: inherit; font-size: .78rem; line-height: 22px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #fff; cursor: pointer; border: 2px solid transparent; }
+.bar:focus-visible, .cell:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.bar.event { background: var(--event); color: var(--ink); text-shadow: 0 0 4px var(--panel), 0 0 4px var(--panel); }
+.bar.closure { background: var(--closure); color: var(--ink); text-shadow: 0 0 4px var(--panel), 0 0 4px var(--panel); }
 .bar.misfit { border-color: var(--bad); }
 .bar.unknown { border-style: dashed; border-color: var(--unknown); }
 .bar.cancelled { opacity: .35; text-decoration: line-through; }
@@ -109,10 +113,15 @@ table.data th { background: color-mix(in srgb, var(--line) 40%, var(--panel)); }
 .stat .l { color: var(--muted); font-size: .8rem; }
 .issues-wrap { max-height: 70vh; overflow: auto; }
 
-/* ---- detail dialog ---- */
-.detail { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 10; }
-.detail-card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; max-width: 560px; width: 100%; max-height: 90vh; overflow: auto; }
+/* ---- detail dialog (a native <dialog>: focus, Escape and the backdrop come for free) ---- */
+dialog.detail { border: 0; padding: 0; background: transparent; max-width: min(560px, 100vw - 32px); width: 100%; }
+dialog.detail::backdrop { background: rgba(0, 0, 0, .45); }
+.detail-card { background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 10px; padding: 16px; max-height: 90vh; overflow: auto; }
 .detail-card dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 0 0 12px; }
 .detail-card dt { color: var(--muted); }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .foot { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 24px; color: var(--muted); font-size: .85rem; }
 .empty { color: var(--muted); padding: 16px; }
+
+/* the hidden attribute must win over every display rule above */
+[hidden] { display: none !important; }

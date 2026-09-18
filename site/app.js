@@ -226,7 +226,9 @@
     const names = l.occupants.map((o) => o.name).join(', ');
     if (l.over_capacity) return `${b.name} over capacity: ${names}`;
     if (l.unverifiable) return `${b.name}: ${names} (a length is missing, cannot verify)`;
-    return `${b.name}: ${names}${l.used_ft !== null && l.capacity_ft ? ` (${fmtFt(l.used_ft)} of ${fmtFt(l.capacity_ft)})` : ''}`;
+    // feet used only matter when the berth is shared; a lone vessel is a fit question
+    const shared = l.occupants.length > 1 && l.used_ft !== null && l.capacity_ft;
+    return `${b.name}: ${names}${shared ? ` (${fmtFt(l.used_ft)} of ${fmtFt(l.capacity_ft)} with clearance)` : ''}`;
   }
 
   function renderLegend() {
@@ -395,7 +397,8 @@
       const b = berthById.get(l.berth_id);
       if (!b) continue;
       const names = l.occupants.map((o) => `${o.name} (${fmtFt(occupantOf(o).length_ft)})`).join(' + ');
-      if (l.occupants.length) lines.push(el('li', {}, el('strong', { text: b.name }), `: ${names}`, l.capacity_ft && l.used_ft !== null ? ` — ${fmtFt(l.used_ft)} of ${fmtFt(l.capacity_ft)} with clearance` : ''));
+      const shared = l.occupants.length > 1 && l.capacity_ft && l.used_ft !== null;
+      if (l.occupants.length) lines.push(el('li', {}, el('strong', { text: b.name }), `: ${names}`, shared ? ` — ${fmtFt(l.used_ft)} of ${fmtFt(l.capacity_ft)} with clearance` : ''));
       if (l.over_capacity) problems.push(el('li', { class: 'bad' }, `${b.name} over capacity: ${names}${l.capacity_ft ? ` = ${l.unknown_count ? 'at least ' : ''}${fmtFt(l.known_ft)} > ${fmtFt(l.capacity_ft)}` : ''}`));
       else if (l.unverifiable) problems.push(el('li', { class: 'unknown' }, `${b.name} is shared and a length is missing, so it cannot be verified.`));
       for (const o of l.occupants) {

@@ -209,9 +209,17 @@ def create_vessel(body: VesselIn, conn=Depends(get_db)) -> dict:
 
 @app.patch("/api/vessels/{vessel_id}")
 def patch_vessel(vessel_id: int, body: VesselPatch, conn=Depends(get_db)) -> dict:
+    """Change vessel facts. Sending a field as null clears it (a length can go back to unknown)."""
     if db.vessel(conn, vessel_id) is None:
         raise HTTPException(404, f"no vessel with id {vessel_id}")
-    v = db.update_vessel(conn, vessel_id, **body.model_dump(exclude_none=True))
+    changes = {k: getattr(body, k) for k in body.model_fields_set}
+    if "name" in changes:
+        if not changes["name"] or not changes["name"].strip():
+            raise HTTPException(422, "a vessel needs a name")
+        other = db.vessel_by_name(conn, changes["name"])
+        if other is not None and other.id != vessel_id:
+            raise HTTPException(409, f"a vessel named like {changes['name']!r} already exists")
+    v = db.update_vessel(conn, vessel_id, changes)
     return vessel_json(v)  # type: ignore[arg-type]
 
 
@@ -270,7 +278,9 @@ def patch_reservation(reservation_id: int, body: ReservationPatch, conn=Depends(
     if berth is None:
         raise HTTPException(404, f"no berth with id {updated.berth_id}")
     result = _judge(conn, updated, berth)
-    if result.blocking and not (updated.override_reason or "").strip():
+    # a blocking verdict needs a reason given in THIS request; one stored earlier
+    # was about a different situation and must not exempt the change
+    if result.blocking and not (body.override_reason or "").strip():
         raise HTTPException(409, detail=result_json(result))
     return {"reservation": reservation_json(db.update_reservation(conn, updated)), "check": result_json(result)}
 
@@ -300,6 +310,8 @@ def suggest(
 @app.get("/api/loads")
 def loads(start: date, end: date, berth_id: int | None = None, conn=Depends(get_db)) -> list[dict]:
     """Per-berth, per-day occupancy for drawing; the harbor view reads this."""
+    if end < start:
+        raise HTTPException(422, "end is before start")
     if (end - start).days > 400:
         raise HTTPException(422, "ask for at most 400 days at a time")
     berths = [b for b in db.berths(conn) if berth_id is None or b.id == berth_id]

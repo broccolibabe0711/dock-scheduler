@@ -116,3 +116,27 @@ def test_bad_input_is_a_422_not_a_crash(client):
     assert client.post("/api/check", json=body).status_code == 422
     assert client.post("/api/vessels", json={"name": "Bad", "length_ft": -5}).status_code == 422
     assert client.post("/api/reservations", json={**body, "berth_id": 999, "end": "2026-07-06"}).status_code == 404
+
+
+def test_a_stored_override_does_not_exempt_a_later_edit(client):
+    west, face = berth_id(client, "North Pier West"), berth_id(client, "North Pier Face")
+    vid = vessel_id(client, "golden compass")  # 120'
+    saved = client.post("/api/reservations", json={"berth_id": west, "vessel_id": vid, "start": "2026-11-01",
+                                                   "end": "2026-11-02", "override_reason": "decoration"}).json()["reservation"]
+    moved = client.patch(f"/api/reservations/{saved['id']}", json={"berth_id": face})
+    assert moved.status_code == 409  # the old reason was about another berth
+    assert client.patch(f"/api/reservations/{saved['id']}", json={"berth_id": face, "override_reason": "rafting"}).status_code == 200
+
+
+def test_reversed_loads_and_colliding_renames_are_4xx(client):
+    assert client.get("/api/loads", params={"start": "2026-01-10", "end": "2026-01-01"}).status_code == 422
+    a = client.post("/api/vessels", json={"name": "M/V Alpha One", "length_ft": 50}).json()
+    b = client.post("/api/vessels", json={"name": "M/V Beta Two", "length_ft": 50}).json()
+    assert client.patch(f"/api/vessels/{b['id']}", json={"name": "m/v ALPHA ONE"}).status_code == 409
+    assert client.patch(f"/api/vessels/{a['id']}", json={"name": "M/V Alpha One"}).status_code == 200
+
+
+def test_a_length_can_be_cleared_back_to_unknown(client):
+    v = client.post("/api/vessels", json={"name": "F/V Measured", "length_ft": 40}).json()
+    cleared = client.patch(f"/api/vessels/{v['id']}", json={"length_ft": None}).json()
+    assert cleared["length_ft"] is None

@@ -14,6 +14,8 @@ from pathlib import Path
 
 from .audit import build_report
 from .importer import ImportResult, import_workbook
+from .models import DayRange
+from .rules import day_loads
 
 
 def snapshot(result: ImportResult, generated_on: date) -> dict[str, object]:
@@ -30,9 +32,12 @@ def snapshot(result: ImportResult, generated_on: date) -> dict[str, object]:
          "draft_ft": v.draft_ft, "operator": v.operator, "rafts_ok": v.rafts_ok, "notes": v.notes}
         for v in result.vessels
     ]
+    berth_by_id = {b.id: b for b in result.berths}
     reservations = [
         {"id": r.id, "berth_id": r.berth_id, "kind": r.kind.value, "vessel_id": r.vessel.id if r.vessel else None,
-         "name": r.display_name, "length_ft": r.vessel.length_ft if r.vessel else None, "title": r.title,
+         "name": r.display_name, "length_ft": r.vessel.length_ft if r.vessel else None,
+         # feet of berth this stay uses, from the model, so the browser only adds up
+         "occupied_ft": r.occupied_ft(berth_by_id[r.berth_id]), "title": r.title,
          "start": r.days.start.isoformat(), "end": r.days.end.isoformat(), "status": r.status,
          "source": r.source, "legacy_ref": r.legacy_ref, "notes": r.notes}
         for r in result.reservations
@@ -44,12 +49,21 @@ def snapshot(result: ImportResult, generated_on: date) -> dict[str, object]:
     ]
     issues = [{"kind": i.kind, "severity": i.severity, "sheet": i.sheet, "cell": i.cell, "message": i.message}
               for i in result.issues]
-    # flags per reservation for the harbor view: no rules run in the browser
+    # flags for the views: no rules run in the browser. The per-day flags come
+    # from the same day_loads() the API serves, so both modes agree exactly.
     misfit_ids = sorted({r.id for r, _ in report.misfits})
     unknown_ids = sorted({r.id for r in report.unknown_length})
-    over_days = [{"berth_id": l.berth.id, "day": l.day.isoformat()} for l in report.over_capacity]
-    unverifiable_days = [{"berth_id": l.berth.id, "day": l.day.isoformat()} for l in report.unverifiable]
     active = [r for r in result.reservations if r.is_active]
+    over_days: list[dict] = []
+    unverifiable_days: list[dict] = []
+    if active:
+        span = DayRange(min(r.days.start for r in active), max(r.days.end for r in active))
+        for b in result.berths:
+            for load in day_loads(b, active, span):
+                if load.over_capacity:
+                    over_days.append({"berth_id": b.id, "day": load.day.isoformat()})
+                elif load.unverifiable:
+                    unverifiable_days.append({"berth_id": b.id, "day": load.day.isoformat()})
     meta = {"generated_on": generated_on.isoformat(), "source": result.stats.get("source", ""),
             "totals": result.stats["totals"], "mode": "static",
             "first_day": min(r.days.start for r in active).isoformat() if active else None,
