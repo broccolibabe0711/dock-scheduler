@@ -1,0 +1,313 @@
+"""The HTTP layer: parse the request, ask the referee, return JSON.
+
+    .venv/bin/uvicorn dock.api:app --reload      then open http://127.0.0.1:8000
+
+Every write goes through rules.check(). A blocking verdict (CONFLICT or
+UNKNOWN) is refused with 409 unless the request carries an override_reason,
+which is then stored on the reservation. Routes never compute rules
+themselves, and the front end only renders the findings they return.
+"""
+from __future__ import annotations
+
+import os
+from contextlib import asynccontextmanager
+from datetime import date
+from pathlib import Path
+from typing import Iterator, Literal
+
+from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
+
+from . import db, rules
+from .models import Berth, CheckResult, DayLoad, DayRange, Finding, Reservation, ReservationKind, Vessel
+
+ROOT = Path(__file__).resolve().parents[1]
+DB_PATH = Path(os.environ.get("DOCK_DB", ROOT / "dock.db"))
+SAMPLE = ROOT / "data" / "Dock Schedule - Synthetic Sample.xlsx"
+SITE = ROOT / "site"
+
+def ensure_data() -> None:
+    """First run: import the sample so the app is never empty."""
+    conn = db.connect(DB_PATH)
+    try:
+        empty = conn.execute("SELECT COUNT(*) FROM berths").fetchone()[0] == 0
+    finally:
+        conn.close()
+    if empty and SAMPLE.exists():
+        db.import_workbook_into(DB_PATH, SAMPLE)
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    ensure_data()
+    yield
+
+
+app = FastAPI(title="Dock Scheduler", version="0.1.0", lifespan=lifespan,
+              description="Berth reservations with conflict and fit checking. Every write passes rules.check().")
+
+
+def get_db() -> Iterator:
+    conn = db.connect(DB_PATH)
+    try:
+        yield conn
+    finally:
+        conn.close()
+
+
+def iso(value: date | None) -> str | None:
+    """Dates travel as ISO strings, also inside 409 bodies which bypass FastAPI's encoder."""
+    return value.isoformat() if value is not None else None
+
+
+# ---------------------------------------------------------------- JSON shapes
+def berth_json(b: Berth) -> dict:
+    return {"id": b.id, "name": b.name, "length_ft": b.length_ft, "capacity_mode": b.capacity_mode.value,
+            "clearance_ft": b.clearance_ft, "active_from": iso(b.active_from), "active_to": iso(b.active_to)}
+
+
+def vessel_json(v: Vessel) -> dict:
+    return {"id": v.id, "name": v.name, "length_ft": v.length_ft, "type_prefix": v.type_prefix,
+            "draft_ft": v.draft_ft, "operator": v.operator, "rafts_ok": v.rafts_ok, "notes": v.notes}
+
+
+def reservation_json(r: Reservation) -> dict:
+    return {"id": r.id, "berth_id": r.berth_id, "kind": r.kind.value, "vessel": vessel_json(r.vessel) if r.vessel else None,
+            "title": r.title, "name": r.display_name, "start": iso(r.days.start), "end": iso(r.days.end), "days": r.days.days,
+            "status": r.status, "override_reason": r.override_reason, "source": r.source,
+            "legacy_ref": r.legacy_ref, "notes": r.notes}
+
+
+def finding_json(f: Finding) -> dict:
+    return {"code": f.code.value, "severity": f.severity.value, "message": f.message, "day": iso(f.day),
+            "related": list(f.related), "numbers": f.numbers}
+
+
+def result_json(res: CheckResult) -> dict:
+    return {"verdict": res.verdict.value, "blocking": res.blocking, "findings": [finding_json(f) for f in res.findings]}
+
+
+def load_json(load: DayLoad) -> dict:
+    return {"berth_id": load.berth.id, "day": iso(load.day), "known_ft": load.known_ft, "unknown_count": load.unknown_count,
+            "used_ft": load.used_ft, "capacity_ft": load.capacity_ft, "over_by_ft": load.over_by_ft,
+            "over_capacity": load.over_capacity, "unverifiable": load.unverifiable,
+            "occupants": [reservation_json(r) for r in load.occupants]}
+
+
+# ---------------------------------------------------------------- request bodies
+class ReservationIn(BaseModel):
+    berth_id: int
+    kind: Literal["vessel", "event", "closure"] = "vessel"
+    vessel_id: int | None = None
+    title: str = ""
+    start: date
+    end: date
+    status: Literal["planned", "confirmed", "cancelled"] = "planned"
+    override_reason: str | None = None
+    notes: str = ""
+    id: int | None = Field(default=None, description="set when re-checking an existing reservation")
+
+
+class ReservationPatch(BaseModel):
+    berth_id: int | None = None
+    start: date | None = None
+    end: date | None = None
+    status: Literal["planned", "confirmed", "cancelled"] | None = None
+    override_reason: str | None = None
+    notes: str | None = None
+
+
+class VesselIn(BaseModel):
+    name: str
+    length_ft: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    type_prefix: str | None = None
+    draft_ft: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    operator: str | None = None
+    rafts_ok: bool = False
+    notes: str = ""
+
+
+class VesselPatch(BaseModel):
+    name: str | None = None
+    length_ft: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    type_prefix: str | None = None
+    draft_ft: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    operator: str | None = None
+    rafts_ok: bool | None = None
+    notes: str | None = None
+
+
+def _candidate(conn, body: ReservationIn) -> tuple[Reservation, Berth]:
+    berth = db.berth(conn, body.berth_id)
+    if berth is None:
+        raise HTTPException(404, f"no berth with id {body.berth_id}")
+    vessel = None
+    if body.kind == "vessel":
+        if body.vessel_id is None:
+            raise HTTPException(422, "a vessel reservation needs vessel_id")
+        vessel = db.vessel(conn, body.vessel_id)
+        if vessel is None:
+            raise HTTPException(404, f"no vessel with id {body.vessel_id}")
+    try:
+        candidate = Reservation(
+            berth_id=body.berth_id, kind=ReservationKind(body.kind), days=DayRange(body.start, body.end),
+            vessel=vessel, title=body.title, status=body.status, override_reason=body.override_reason,
+            notes=body.notes, id=body.id,
+        )
+    except ValueError as e:
+        raise HTTPException(422, str(e)) from e
+    return candidate, berth
+
+
+def _judge(conn, candidate: Reservation, berth: Berth) -> CheckResult:
+    existing = db.reservations(conn, berth_id=berth.id, start=candidate.days.start, end=candidate.days.end)
+    return rules.check(candidate, berth, existing)
+
+
+# ---------------------------------------------------------------- routes
+@app.get("/api/berths")
+def list_berths(conn=Depends(get_db)) -> list[dict]:
+    return [berth_json(b) for b in db.berths(conn)]
+
+
+@app.get("/api/vessels")
+def list_vessels(q: str = "", limit: int = Query(50, le=1000), conn=Depends(get_db)) -> list[dict]:
+    return [vessel_json(v) for v in db.vessels(conn, q, limit)]
+
+
+@app.post("/api/vessels", status_code=201)
+def create_vessel(body: VesselIn, conn=Depends(get_db)) -> dict:
+    if db.vessel_by_name(conn, body.name) is not None:
+        raise HTTPException(409, f"a vessel named like {body.name!r} already exists")
+    try:
+        v = Vessel(body.name, body.length_ft, body.type_prefix, body.draft_ft, body.operator, body.rafts_ok, body.notes)
+    except ValueError as e:
+        raise HTTPException(422, str(e)) from e
+    return vessel_json(db.insert_vessel(conn, v))
+
+
+@app.patch("/api/vessels/{vessel_id}")
+def patch_vessel(vessel_id: int, body: VesselPatch, conn=Depends(get_db)) -> dict:
+    if db.vessel(conn, vessel_id) is None:
+        raise HTTPException(404, f"no vessel with id {vessel_id}")
+    v = db.update_vessel(conn, vessel_id, **body.model_dump(exclude_none=True))
+    return vessel_json(v)  # type: ignore[arg-type]
+
+
+@app.get("/api/reservations")
+def list_reservations(
+    start: date | None = None, end: date | None = None, berth_id: int | None = None,
+    include_cancelled: bool = False, conn=Depends(get_db),
+) -> list[dict]:
+    return [reservation_json(r) for r in db.reservations(conn, berth_id, start, end, include_cancelled)]
+
+
+@app.get("/api/reservations/{reservation_id}")
+def get_reservation(reservation_id: int, conn=Depends(get_db)) -> dict:
+    r = db.reservation(conn, reservation_id)
+    if r is None:
+        raise HTTPException(404, f"no reservation with id {reservation_id}")
+    return reservation_json(r)
+
+
+@app.post("/api/check")
+def check_reservation(body: ReservationIn, conn=Depends(get_db)) -> dict:
+    """Judge a booking without saving it."""
+    candidate, berth = _candidate(conn, body)
+    return result_json(_judge(conn, candidate, berth))
+
+
+@app.post("/api/reservations", status_code=201)
+def create_reservation(body: ReservationIn, conn=Depends(get_db)) -> dict:
+    """Save a booking. Blocking verdicts are refused (409) unless override_reason is given."""
+    candidate, berth = _candidate(conn, body)
+    result = _judge(conn, candidate, berth)
+    if result.blocking and not (candidate.override_reason or "").strip():
+        raise HTTPException(409, detail=result_json(result))
+    saved = db.insert_reservation(conn, candidate)
+    return {"reservation": reservation_json(saved), "check": result_json(result)}
+
+
+@app.patch("/api/reservations/{reservation_id}")
+def patch_reservation(reservation_id: int, body: ReservationPatch, conn=Depends(get_db)) -> dict:
+    """Change dates, berth, status or notes. Cancelling never needs a check."""
+    current = db.reservation(conn, reservation_id)
+    if current is None:
+        raise HTTPException(404, f"no reservation with id {reservation_id}")
+    changes = body.model_dump(exclude_none=True)
+    try:
+        days = DayRange(changes.get("start", current.days.start), changes.get("end", current.days.end))
+        updated = Reservation(
+            berth_id=changes.get("berth_id", current.berth_id), kind=current.kind, days=days, vessel=current.vessel,
+            title=current.title, status=changes.get("status", current.status),
+            override_reason=changes.get("override_reason", current.override_reason), source=current.source,
+            legacy_ref=current.legacy_ref, notes=changes.get("notes", current.notes), id=current.id,
+        )
+    except ValueError as e:
+        raise HTTPException(422, str(e)) from e
+    berth = db.berth(conn, updated.berth_id)
+    if berth is None:
+        raise HTTPException(404, f"no berth with id {updated.berth_id}")
+    result = _judge(conn, updated, berth)
+    if result.blocking and not (updated.override_reason or "").strip():
+        raise HTTPException(409, detail=result_json(result))
+    return {"reservation": reservation_json(db.update_reservation(conn, updated)), "check": result_json(result)}
+
+
+@app.get("/api/suggest")
+def suggest(
+    start: date, end: date, vessel_id: int | None = None, kind: Literal["vessel", "event", "closure"] = "vessel",
+    title: str = "requested booking", include_unknown: bool = False, conn=Depends(get_db),
+) -> list[dict]:
+    """Berths where this booking would be accepted, smallest fitting first."""
+    vessel = None
+    if kind == "vessel":
+        if vessel_id is None:
+            raise HTTPException(422, "vessel_id is required for a vessel booking")
+        vessel = db.vessel(conn, vessel_id)
+        if vessel is None:
+            raise HTTPException(404, f"no vessel with id {vessel_id}")
+    try:
+        wanted = Reservation(berth_id=0, kind=ReservationKind(kind), days=DayRange(start, end), vessel=vessel, title=title)
+    except ValueError as e:
+        raise HTTPException(422, str(e)) from e
+    existing = db.reservations(conn, start=start, end=end)
+    out = rules.suggest_berths(wanted, db.berths(conn), existing, include_unknown=include_unknown)
+    return [{"berth": berth_json(s.berth), "check": result_json(s.result)} for s in out]
+
+
+@app.get("/api/loads")
+def loads(start: date, end: date, berth_id: int | None = None, conn=Depends(get_db)) -> list[dict]:
+    """Per-berth, per-day occupancy for drawing; the harbor view reads this."""
+    if (end - start).days > 400:
+        raise HTTPException(422, "ask for at most 400 days at a time")
+    berths = [b for b in db.berths(conn) if berth_id is None or b.id == berth_id]
+    if berth_id is not None and not berths:
+        raise HTTPException(404, f"no berth with id {berth_id}")
+    existing = db.reservations(conn, start=start, end=end)
+    days = DayRange(start, end)
+    return [load_json(l) for b in berths for l in rules.day_loads(b, existing, days)]
+
+
+@app.get("/api/annotations")
+def list_annotations(start: date | None = None, end: date | None = None, conn=Depends(get_db)) -> list[dict]:
+    return db.annotations(conn, start, end)
+
+
+@app.get("/api/issues")
+def list_issues(kind: str | None = None, sheet: str | None = None, limit: int = Query(500, le=5000), conn=Depends(get_db)) -> dict:
+    return {"counts": db.issue_counts(conn), "issues": db.issues(conn, kind, sheet, limit)}
+
+
+@app.get("/api/audit")
+def get_audit(conn=Depends(get_db)) -> dict:
+    """The audit of the imported history, as computed at import time."""
+    data = db.meta(conn, "audit")
+    if data is None:
+        raise HTTPException(404, "no import has been loaded")
+    return data
+
+
+if SITE.exists():
+    app.mount("/", StaticFiles(directory=SITE, html=True), name="site")
