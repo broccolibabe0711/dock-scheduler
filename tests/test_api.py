@@ -140,3 +140,12 @@ def test_a_length_can_be_cleared_back_to_unknown(client):
     v = client.post("/api/vessels", json={"name": "F/V Measured", "length_ft": 40}).json()
     cleared = client.patch(f"/api/vessels/{v['id']}", json={"length_ft": None}).json()
     assert cleared["length_ft"] is None
+
+
+def test_a_post_with_an_id_cannot_slip_past_the_referee(client):
+    face = berth_id(client, "North Pier Face")
+    tiny = client.post("/api/vessels", json={"name": "F/V Probe", "length_ft": 20}).json()
+    first = client.post("/api/reservations", json={"berth_id": face, "vessel_id": tiny["id"],
+                                                   "start": "2026-10-10", "end": "2026-10-11"}).json()["reservation"]
+    ev = {"berth_id": face, "kind": "event", "title": "Donor reception", "start": "2026-10-10", "end": "2026-10-10", "id": first["id"]}
+    assert client.post("/api/reservations", json=ev).status_code == 422

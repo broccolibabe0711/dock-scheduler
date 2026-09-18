@@ -237,11 +237,22 @@ def update_reservation(conn: sqlite3.Connection, r: Reservation) -> Reservation:
 
 # ---------------------------------------------------------------- loading an import
 def load_import(conn: sqlite3.Connection, result, audit_data: dict | None = None) -> None:
-    """Replace everything in the database with an ImportResult."""
-    conn.executescript(
-        "DELETE FROM annotations; DELETE FROM reservations; DELETE FROM tours;"
-        " DELETE FROM import_issues; DELETE FROM vessels; DELETE FROM berths; DELETE FROM meta;"
-    )
+    """Replace everything in the database with an ImportResult, all or nothing.
+
+    One transaction: if any row is refused by a constraint, the previous
+    contents survive untouched instead of leaving an empty ledger."""
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        _load_import_rows(conn, result, audit_data)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+
+
+def _load_import_rows(conn: sqlite3.Connection, result, audit_data: dict | None) -> None:
+    for table in ("annotations", "reservations", "tours", "import_issues", "vessels", "berths", "meta"):
+        conn.execute(f"DELETE FROM {table}")
     conn.executemany(
         "INSERT INTO berths (id, name, length_ft, capacity_mode, clearance_ft, active_from, active_to)"
         " VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -284,7 +295,6 @@ def load_import(conn: sqlite3.Connection, result, audit_data: dict | None = None
     conn.execute("INSERT INTO meta (key, value) VALUES ('import_stats', ?)", (json.dumps(result.stats, default=str),))
     if audit_data is not None:
         conn.execute("INSERT INTO meta (key, value) VALUES ('audit', ?)", (json.dumps(audit_data, default=str),))
-    conn.commit()
 
 
 def import_workbook_into(db_path: str | Path, workbook: str | Path) -> dict:

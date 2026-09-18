@@ -114,3 +114,20 @@ def test_the_real_sample_matches_the_data_study():
     counts = r.issue_counts()
     assert counts["mislabelled_month"] == 2 and counts["duplicate_block"] == 3 and counts["merge_beyond_month"] == 3
     assert len(r.tours) == 32 and r.usage_summary[("North Pier West", 2012)] == 648
+
+
+def test_a_failed_reimport_leaves_the_old_ledger_untouched(tiny, tmp_path):
+    import sqlite3
+    from dock import db
+    from dock.models import DayRange, Reservation, ReservationKind, Vessel
+    from datetime import date
+    conn = db.connect(tmp_path / "ledger.db")
+    db.load_import(conn, tiny)
+    before = conn.execute("SELECT COUNT(*) FROM reservations").fetchone()[0]
+    bad = type(tiny)(berths=tiny.berths, vessels=tiny.vessels, reservations=tiny.reservations + [
+        Reservation(999, ReservationKind.VESSEL, DayRange(date(2020, 1, 1), date(2020, 1, 2)), vessel=tiny.vessels[0], id=99999)
+    ], annotations=[], tours=[], issues=[], stats=tiny.stats)
+    import pytest as _pytest
+    with _pytest.raises(sqlite3.IntegrityError):
+        db.load_import(conn, bad)
+    assert conn.execute("SELECT COUNT(*) FROM reservations").fetchone()[0] == before

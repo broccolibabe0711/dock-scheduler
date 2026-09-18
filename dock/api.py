@@ -249,11 +249,22 @@ def check_reservation(body: ReservationIn, conn=Depends(get_db)) -> dict:
 @app.post("/api/reservations", status_code=201)
 def create_reservation(body: ReservationIn, conn=Depends(get_db)) -> dict:
     """Save a booking. Blocking verdicts are refused (409) unless override_reason is given."""
+    if body.id is not None:
+        raise HTTPException(422, "id is only accepted by /api/check; a new booking has no id yet")
     candidate, berth = _candidate(conn, body)
-    result = _judge(conn, candidate, berth)
-    if result.blocking and not (candidate.override_reason or "").strip():
-        raise HTTPException(409, detail=result_json(result))
-    saved = db.insert_reservation(conn, candidate)
+    # judge and save inside one write transaction, so two coordinators booking the
+    # same berth at the same moment cannot both pass the check
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        result = _judge(conn, candidate, berth)
+        if result.blocking and not (candidate.override_reason or "").strip():
+            conn.rollback()
+            raise HTTPException(409, detail=result_json(result))
+        saved = db.insert_reservation(conn, candidate)
+    except Exception:
+        if conn.in_transaction:
+            conn.rollback()
+        raise
     return {"reservation": reservation_json(saved), "check": result_json(result)}
 
 
@@ -277,12 +288,20 @@ def patch_reservation(reservation_id: int, body: ReservationPatch, conn=Depends(
     berth = db.berth(conn, updated.berth_id)
     if berth is None:
         raise HTTPException(404, f"no berth with id {updated.berth_id}")
-    result = _judge(conn, updated, berth)
-    # a blocking verdict needs a reason given in THIS request; one stored earlier
-    # was about a different situation and must not exempt the change
-    if result.blocking and not (body.override_reason or "").strip():
-        raise HTTPException(409, detail=result_json(result))
-    return {"reservation": reservation_json(db.update_reservation(conn, updated)), "check": result_json(result)}
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        result = _judge(conn, updated, berth)
+        # a blocking verdict needs a reason given in THIS request; one stored earlier
+        # was about a different situation and must not exempt the change
+        if result.blocking and not (body.override_reason or "").strip():
+            conn.rollback()
+            raise HTTPException(409, detail=result_json(result))
+        saved = db.update_reservation(conn, updated)
+    except Exception:
+        if conn.in_transaction:
+            conn.rollback()
+        raise
+    return {"reservation": reservation_json(saved), "check": result_json(result)}
 
 
 @app.get("/api/suggest")
