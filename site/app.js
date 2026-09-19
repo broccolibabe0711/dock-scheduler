@@ -13,7 +13,7 @@
   const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
   const pad = (n) => String(n).padStart(2, '0');
   const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-  const VIEWS = ['grid', 'book', 'harbor', 'audit', 'issues'];
+  const VIEWS = ['harbor', 'grid', 'book', 'registry', 'audit', 'issues'];
 
   function el(tag, attrs = {}, ...children) {
     const node = document.createElement(tag);
@@ -97,9 +97,9 @@
       if (!this.cache.berths) this.cache.berths = await this.json('api/berths');
       return this.cache.berths;
     },
-    async vessels(q) {
-      if (this.mode === 'static') { const k = nameKey(q); return this.static.vessels.filter((v) => nameKey(v.name).includes(k)).slice(0, 50); }
-      return this.json(`api/vessels?q=${encodeURIComponent(q)}&limit=50`);
+    async vessels(q, limit = 50) {
+      if (this.mode === 'static') { const k = nameKey(q); return this.static.vessels.filter((v) => nameKey(v.name).includes(k)).sort((a, b) => a.name.localeCompare(b.name)).slice(0, limit); }
+      return this.json(`api/vessels?q=${encodeURIComponent(q)}&limit=${limit}`);
     },
     async reservations(start, end, includeCancelled = false) {
       if (this.mode === 'static') {
@@ -162,10 +162,10 @@
     vessel: null, vesselHits: [], vesselSeq: 0,
   };
 
-  const currentView = () => ($$('.tabs button').find((b) => b.getAttribute('aria-selected') === 'true') || { dataset: {} }).dataset.view || 'grid';
+  const currentView = () => ($$('.tabs button').find((b) => b.getAttribute('aria-selected') === 'true') || { dataset: {} }).dataset.view || 'harbor';
 
   function showView(name) {
-    if (!VIEWS.includes(name)) name = 'grid';
+    if (!VIEWS.includes(name)) name = 'harbor';
     if (name !== 'harbor') stopPlaying();
     $$('.tabs button').forEach((b) => {
       const on = b.dataset.view === name;
@@ -176,6 +176,7 @@
     if (location.hash !== `#${name}`) history.replaceState(null, '', `#${name}`);
     if (name === 'grid') renderGrid();
     if (name === 'harbor') renderHarbor();
+    if (name === 'registry') renderRegistry();
     if (name === 'audit') renderAudit();
     if (name === 'issues') renderIssues();
   }
@@ -519,6 +520,38 @@
   const table = (headers, rows) => el('table', { class: 'data' }, el('thead', {}, el('tr', {}, ...headers.map((h) => el('th', { text: h })))),
     el('tbody', {}, ...rows.map((r) => el('tr', {}, ...r.map((c) => el('td', {}, c))))));
 
+  // ---------------------------------------------------------------- vessel registries
+  let registryTimer = null;
+  let registrySeq = 0;
+  async function renderRegistry() {
+    const seq = ++registrySeq;
+    const q = $('#registry-search').value.trim();
+    const host = $('#registry');
+    const count = $('#registry-count');
+    host.setAttribute('aria-busy', 'true');
+    host.replaceChildren(el('div', { class: 'empty', text: 'Loading vessels…' }));
+    count.textContent = '';
+    try {
+      const vessels = await Data.vessels(q, 1000);
+      if (seq !== registrySeq) return;
+      count.textContent = vessels.length === 1000
+        ? 'Showing the first 1,000 matches. Search by name to narrow the list.'
+        : `${vessels.length} vessel${vessels.length === 1 ? '' : 's'}${q ? ' matching your search' : ''}`;
+      const dimension = (n) => n == null ? el('span', { class: 'registry-unknown', text: 'Unknown' }) : fmtFt(n);
+      host.replaceChildren(vessels.length
+        ? table(['Vessel', 'Length overall', 'Draft', 'Operator', 'Notes'], vessels.map((v) => [
+          v.name, dimension(v.length_ft), dimension(v.draft_ft), v.operator || '—',
+          [v.rafts_ok ? 'Will raft alongside' : '', v.notes].filter(Boolean).join(' · ') || '—',
+        ]))
+        : el('div', { class: 'empty', text: q ? 'No vessels match this name. Try a shorter name or clear the search.' : 'No vessels are registered yet.' }));
+    } catch (err) {
+      if (seq !== registrySeq) return;
+      failed(host, err);
+    } finally {
+      if (seq === registrySeq) host.setAttribute('aria-busy', 'false');
+    }
+  }
+
   async function renderAudit() {
     const host = $('#audit');
     host.replaceChildren(el('div', { class: 'empty', text: 'Loading…' }));
@@ -608,7 +641,7 @@
       next.focus();
       showView(next.dataset.view);
     });
-    window.addEventListener('hashchange', () => { const v = location.hash.slice(1); if (VIEWS.includes(v) && v !== currentView()) showView(v); });
+    window.addEventListener('hashchange', () => { const v = location.hash.slice(1); const next = VIEWS.includes(v) ? v : 'harbor'; if (next !== currentView()) showView(next); });
   }
 
   async function init() {
@@ -629,6 +662,13 @@
     $('#book-end').value = $('#book-start').value;
     $('#grid-today').onclick = () => { state.month = today.slice(0, 7); renderGrid(); };
     $('#grid-history').onclick = () => { state.month = '2017-07'; renderGrid(); };
+    $('#harbor-today').onclick = () => { stopPlaying(); state.day = today; renderHarbor(); };
+    $('#harbor-history').onclick = () => { stopPlaying(); state.day = '2017-07-12'; renderHarbor(); };
+    $('#registry-search').oninput = () => {
+      clearTimeout(registryTimer);
+      ++registrySeq; // invalidate an in-flight result as soon as the search changes
+      registryTimer = setTimeout(renderRegistry, 150);
+    };
     wireTabs();
     $('#grid-prev').onclick = () => { const { y, m } = monthRange(state.month); state.month = m === 1 ? `${y - 1}-12` : `${y}-${pad(m - 1)}`; renderGrid(); };
     $('#grid-next').onclick = () => { const { y, m } = monthRange(state.month); state.month = m === 12 ? `${y + 1}-01` : `${y}-${pad(m + 1)}`; renderGrid(); };
@@ -652,11 +692,11 @@
       ['#book-check', '#book-suggest', '#book-save', '#vessel-length-save'].forEach((s) => { $(s).disabled = true; });
     }
     kindChanged();
-    showView(VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'grid');
+    showView(VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'harbor');
   }
 
   init().catch((err) => {
     $('#mode-badge').textContent = 'failed to load';
-    $('#grid').replaceChildren(el('div', { class: 'empty', text: `Could not load data: ${err.message}` }));
+    $('main').replaceChildren(el('div', { class: 'empty', role: 'alert', text: `Could not load data: ${err.message}` }));
   });
 })();

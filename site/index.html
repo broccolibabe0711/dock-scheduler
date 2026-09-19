@@ -17,15 +17,16 @@
 </header>
 
 <nav class="tabs" role="tablist" aria-label="Views">
-  <button role="tab" id="tab-grid" aria-controls="view-grid" data-view="grid" aria-selected="true">Grid</button>
+  <button role="tab" id="tab-harbor" class="harbor-tab" aria-controls="view-harbor" data-view="harbor" aria-selected="true">Harbor</button>
+  <button role="tab" id="tab-grid" aria-controls="view-grid" data-view="grid" aria-selected="false" tabindex="-1">Grid</button>
   <button role="tab" id="tab-book" aria-controls="view-book" data-view="book" aria-selected="false" tabindex="-1">Book</button>
-  <button role="tab" id="tab-harbor" aria-controls="view-harbor" data-view="harbor" aria-selected="false" tabindex="-1">Harbor</button>
+  <button role="tab" id="tab-registry" aria-controls="view-registry" data-view="registry" aria-selected="false" tabindex="-1">Vessel registries</button>
   <button role="tab" id="tab-audit" aria-controls="view-audit" data-view="audit" aria-selected="false" tabindex="-1">Audit</button>
   <button role="tab" id="tab-issues" aria-controls="view-issues" data-view="issues" aria-selected="false" tabindex="-1">Issues</button>
 </nav>
 
 <main>
-  <section id="view-grid" class="view" role="tabpanel" aria-labelledby="tab-grid">
+  <section id="view-grid" class="view" hidden role="tabpanel" aria-labelledby="tab-grid">
     <div class="toolbar">
       <button id="grid-prev" aria-label="Previous month" title="Previous month">◀</button>
       <input type="month" id="grid-month" aria-label="Month" pattern="\d{4}-(0[1-9]|1[0-2])">
@@ -54,6 +55,7 @@
           <input list="vessel-options" id="book-vessel" placeholder="type a name…" required>
           <datalist id="vessel-options"></datalist>
         </label>
+        <a class="vessel-only" href="#registry">Browse vessel registries</a>
         <label class="non-vessel-only" hidden>Title
           <input id="book-title" placeholder="Community sail day">
         </label>
@@ -88,18 +90,33 @@
     <div id="book-suggestions" class="suggestions"></div>
   </section>
 
-  <section id="view-harbor" class="view" hidden role="tabpanel" aria-labelledby="tab-harbor">
+  <section id="view-harbor" class="view" role="tabpanel" aria-labelledby="tab-harbor">
     <div class="toolbar">
       <button id="harbor-prev" aria-label="Previous day" title="Previous day">◀</button>
       <input type="date" id="harbor-day" aria-label="Day">
       <button id="harbor-next" aria-label="Next day" title="Next day">▶</button>
       <button id="harbor-play" aria-pressed="false">▶ Play</button>
+      <button id="harbor-today">Today</button>
+      <button id="harbor-history">Sample history</button>
       <span class="hint">One day per step. Hulls are drawn to scale; red means the referee found a conflict that day.</span>
     </div>
     <div class="harbor-layout">
       <div id="harbor" class="harbor"></div>
       <aside id="harbor-panel" class="panel" aria-live="polite"></aside>
     </div>
+  </section>
+
+  <section id="view-registry" class="view" hidden role="tabpanel" aria-labelledby="tab-registry">
+    <h2>Vessel registries</h2>
+    <p>Vessels from the Science and Yachts registries, the historical schedule, and live bookings. Missing dimensions are shown as unknown.</p>
+    <div class="toolbar registry-toolbar">
+      <label for="registry-search">Search vessel names
+        <input type="search" id="registry-search" placeholder="Vessel name…" autocomplete="off">
+      </label>
+      <a href="https://github.com/broccolibabe0711/dock-scheduler/blob/main/data/Dock%20Schedule%20-%20Synthetic%20Sample.xlsx" target="_blank" rel="noopener">Original Science &amp; Yachts workbook</a>
+    </div>
+    <p id="registry-count" class="hint" role="status" aria-live="polite"></p>
+    <div id="registry" class="registry-table" aria-busy="false"></div>
   </section>
 
   <section id="view-audit" class="view" hidden role="tabpanel" aria-labelledby="tab-audit">

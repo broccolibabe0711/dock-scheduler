@@ -36,6 +36,9 @@ a { color: var(--accent); }
 .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 12px; overflow-x: auto; }
 .tabs button { background: none; border: 0; border-bottom: 3px solid transparent; color: var(--muted); padding: 8px 12px; font: inherit; cursor: pointer; }
 .tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); font-weight: 600; }
+.tabs button { white-space: nowrap; }
+.tabs .harbor-tab { background: color-mix(in srgb, var(--accent) 12%, var(--panel)); color: var(--accent); font-weight: 700; padding-inline: 20px; border-radius: var(--radius) var(--radius) 0 0; }
+.tabs .harbor-tab[aria-selected="true"] { background: var(--accent); color: var(--accent-ink); }
 .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 8px 0 12px; }
 .hint { color: var(--muted); font-size: .85rem; }
 button, input, select { font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 6px 10px; }
@@ -104,6 +107,14 @@ label > input, label > select { color: var(--ink); }
 .panel .bad { color: var(--bad); } .panel .unknown { color: var(--unknown); } .panel .ok { color: var(--ok); }
 
 /* ---- audit & issues ---- */
+.registry-toolbar { align-items: flex-end; gap: 18px; }
+.registry-toolbar input { width: min(320px, 100%); }
+.registry-table { overflow: auto; max-height: 65vh; border-radius: var(--radius); }
+.registry-table table { min-width: 720px; }
+.registry-table th { position: sticky; top: 0; }
+.registry-table td:first-child { font-weight: 600; min-width: 190px; }
+.registry-table td:last-child { min-width: 240px; overflow-wrap: anywhere; }
+.registry-unknown { color: var(--unknown); }
 table.data { border-collapse: collapse; width: 100%; background: var(--panel); font-size: .88rem; margin-bottom: 14px; }
 table.data th, table.data td { border: 1px solid var(--line); padding: 6px 8px; text-align: left; vertical-align: top; }
 table.data th { background: color-mix(in srgb, var(--line) 40%, var(--panel)); }
