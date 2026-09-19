@@ -3,7 +3,29 @@
 **For:** Baron Zhang's take-home for Columbia Software Solutions
 **Written:** 18 September 2026 (before any application code exists)
 **Budget:** about 6 hours of Baron's own time, working with Claude Code as a pair
-**Status of this document:** the plan. Every later decision either follows it or updates it with a reason.
+**Status of this document:** the plan, written before any code. The build followed it; the section right below records where reality differed. Every later decision is in `docs/decisions/`.
+
+---
+
+## Implementation status (19 September 2026)
+
+| Phase | Planned | What happened |
+|---|---|---|
+| 0 Setup and GitHub | 0.5 h | Done. Repo public at github.com/broccolibabe0711/dock-scheduler; CI runs the tests on every push; Pages deploys `site/` from a workflow. |
+| 1 Assumptions | 0.5 h | Done as `docs/ASSUMPTIONS.md` (20 numbered items) with the defaults from Section 8.2. |
+| 2 Rules engine | 1.0 h | Done. `dock/rules.py` + `dock/models.py`; 60 sentence-named tests; three review passes found real gaps (string enums, NaN lengths, orphaned stays, known sums downgraded to UNKNOWN) that became decision 0007 and tests. |
+| 3 Importer and audit | 1.0 h | Done. Reproduces the independent data study's extraction; 479 issues logged on the sample; `docs/AUDIT_REPORT.md` generated. A review found the damaged 2010 blocks' true day-1 row sits above the header; fixed and tested. |
+| 4 Storage and API | 0.5 h | Done. SQLite with CHECK constraints; FastAPI with `/docs`; every write judged inside one transaction; a stored override never exempts a later edit. |
+| 5 UI and harbor view | 1.0 h | Done. Grid, Book, Harbor, Audit, Issues; the harbor module was built from the standalone prototype and driven by API data. |
+| 6 Static demo, README | 0.75 h | Done. `python -m dock.export` writes the snapshot; the same front end runs on it; conflict flags come from the same function the API serves. |
+| 7 Review and rehearsal | 0.75 h | Reviews done (six agent passes, findings fixed, 101 tests). Rehearsal is Baron's. |
+
+**Where the plan changed, and why.**
+
+- The audit found **0 berth-days over capacity** in the legacy grid, not the dramatic number the "archaeologist" proposal hoped for. The grid physically could not double-book a row; the story became "the spreadsheet made double-booking impossible to write down and therefore impossible to see", which the duplicated rows and the shared-face model support. The honest number is the better talking point.
+- Only **33 of 1,927** vessel stays have a known length, so "UNKNOWN is not OK" (decision 0003) is the common case in history, not an edge case, and the audit reports "unverifiable" days rather than pretending.
+- The harbor view and the audit page label a **closure-shared day** differently by design: the audit counts feet arithmetic and lists closures separately; the grid and harbor paint any day the referee would refuse. The audit page says so.
+- Six review passes were run instead of one per phase, because the first pass on the rules engine paid for itself immediately (Section 7 gate, decision 0007).
 
 ---
 
