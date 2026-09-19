@@ -73,11 +73,11 @@
         if (!r.ok) throw new Error(`data/${name}.json is missing (${r.status})`);
         return r.json();
       };
-      const [meta, berths, vessels, reservations, annotations, issues, audit, flags] = await Promise.all(
-        ['meta', 'berths', 'vessels', 'reservations', 'annotations', 'issues', 'audit', 'flags'].map(get));
+      const [meta, berths, vessels, reservations, issues, audit, flags] = await Promise.all(
+        ['meta', 'berths', 'vessels', 'reservations', 'issues', 'audit', 'flags'].map(get));
       this.meta = meta;
       this.static = {
-        berths, vessels, reservations, annotations, issues, audit,
+        berths, vessels, reservations, issues, audit,
         flags: {
           misfits: new Set(flags.misfits),
           unknown: new Set(flags.unknown_length),
@@ -101,9 +101,11 @@
       if (this.mode === 'static') { const k = nameKey(q); return this.static.vessels.filter((v) => nameKey(v.name).includes(k)).slice(0, 50); }
       return this.json(`api/vessels?q=${encodeURIComponent(q)}&limit=50`);
     },
-    async reservations(start, end) {
-      if (this.mode === 'static') return this.static.reservations.filter((r) => r.start <= end && r.end >= start && r.status !== 'cancelled');
-      return this.json(`api/reservations?start=${start}&end=${end}`);
+    async reservations(start, end, includeCancelled = false) {
+      if (this.mode === 'static') {
+        return this.static.reservations.filter((r) => r.start <= end && r.end >= start && (includeCancelled || r.status !== 'cancelled'));
+      }
+      return this.json(`api/reservations?start=${start}&end=${end}${includeCancelled ? '&include_cancelled=true' : ''}`);
     },
     async loads(start, end) {
       if (this.mode === 'static') return this.staticLoads(start, end);
@@ -127,7 +129,7 @@
           }
           out.push({
             berth_id: b.id, day, known_ft: known, unknown_count: unknown, used_ft: unknown ? null : known,
-            capacity_ft: b.length_ft, over_by_ft: b.length_ft === null ? null : Math.max(0, known - b.length_ft),
+            capacity_ft: b.length_ft,
             over_capacity: flags.over.has(`${b.id}|${day}`), unverifiable: flags.unverifiable.has(`${b.id}|${day}`), occupants,
           });
         }
@@ -199,20 +201,20 @@
     const grid = $('#grid');
     grid.replaceChildren(el('div', { class: 'empty', text: 'Loading…' }));
     let reservations, loads;
-    try { [reservations, loads] = await Promise.all([Data.reservations(start, end), loadsForMonth(ym)]); }
+    try { [reservations, loads] = await Promise.all([Data.reservations(start, end, true), loadsForMonth(ym)]); }
     catch (err) { failed(grid, err); return; }
     if (ym !== state.month) return; // the user moved on while this month was loading
     const loadIndex = new Map(loads.map((l) => [`${l.berth_id}|${l.day}`, l]));
     const fitIndex = new Map();
     for (const l of loads) for (const o of l.occupants) fitIndex.set(o.id, o.fit);
 
-    const table = el('div', { class: 'grid-table', style: `--days:${n}` });
+    const gridTable = el('div', { class: 'grid-table', style: `--days:${n}` });
     const head = el('div', { class: 'grid-head' }, el('div', { text: `${MONTHS[m - 1]} ${y}` }));
     for (let d = 1; d <= n; d++) {
       const w = weekday(`${ym}-${pad(d)}`);
       head.append(el('div', { class: `day${w === 'S' ? ' weekend' : ''}`, text: `${w}\n${d}` }));
     }
-    table.append(head);
+    gridTable.append(head);
 
     let flagged = 0;
     for (const b of state.berths) {
@@ -248,12 +250,11 @@
           onclick: (ev) => { ev.stopPropagation(); showDetail(r); },
         }));
       }
-      if (!mine.length) bars.style.minHeight = '30px';
       lanes.append(cells, bars);
       row.append(lanes);
-      table.append(row);
+      gridTable.append(row);
     }
-    grid.replaceChildren(table);
+    grid.replaceChildren(gridTable);
     $('#grid-status').textContent = `${MONTHS[m - 1]} ${y}: ${reservations.length} reservation(s), ${flagged} flagged berth-day(s).`;
     renderLegend();
   }
@@ -301,7 +302,11 @@
     vesselSearchTimer = setTimeout(async () => {
       const seq = ++state.vesselSeq; // a slow, older search must not overwrite a newer one
       let hits = [];
-      try { hits = q ? await Data.vessels(q) : []; } catch (err) { hits = []; }
+      try { hits = q ? await Data.vessels(q) : []; }
+      catch (err) {
+        if (seq === state.vesselSeq) { $('#vessel-facts').hidden = false; $('#vessel-summary').textContent = `Could not reach the vessel registry: ${errorText(err)}`; }
+        return; // keep the previous hits; nothing is concluded from a failed search
+      }
       if (seq !== state.vesselSeq) return;
       state.vesselHits = hits;
       $('#vessel-options').replaceChildren(...hits.map((v) => el('option', { value: v.name, text: v.length_ft ? fmtFt(v.length_ft) : 'length unknown' })));
@@ -437,7 +442,7 @@
     $('#harbor-day').value = day;
     let loads;
     try { loads = (await loadsForMonth(day.slice(0, 7))).filter((l) => l.day === day); }
-    catch (err) { failed($('#harbor-panel'), err); return; }
+    catch (err) { stopPlaying(); failed($('#harbor-panel'), err); return; }
     if (day !== state.day) return; // scrubbed past this day while it was loading
     const byBerth = {};
     const flags = { overCapacity: new Set(), unverifiable: new Set(), misfits: new Set(), unknownLength: new Set() };
@@ -445,7 +450,10 @@
       byBerth[l.berth_id] = l.occupants.map(occupantOf);
       if (l.over_capacity) flags.overCapacity.add(l.berth_id);
       if (l.unverifiable) flags.unverifiable.add(l.berth_id);
-      for (const o of l.occupants) { if (o.fit === 'misfit') flags.misfits.add(o.id); if (o.fit === 'unknown') flags.unknownLength.add(o.id); }
+      for (const o of l.occupants) {
+        if (o.fit === 'misfit') flags.misfits.add(o.id);
+        if (occupantOf(o).length_ft === null && o.kind === 'vessel') flags.unknownLength.add(o.id);
+      }
     }
     state.harbor.setDay(day, byBerth, flags);
     renderHarborPanel(loads);
@@ -473,7 +481,11 @@
       for (const o of l.occupants) {
         const len = occupantOf(o).length_ft;
         if (o.fit === 'misfit' && b.length_ft) problems.push(el('li', { class: 'bad' }, `${o.name} (${fmtFt(len)}) exceeds ${b.name} (${fmtFt(b.length_ft)}) by ${fmtFt(len - b.length_ft)}.`));
-        if (o.fit === 'unknown') problems.push(el('li', { class: 'unknown' }, `${o.name}: length not on file, fit unknown.`));
+        if (o.fit === 'unknown') {
+          problems.push(el('li', { class: 'unknown' }, len === null
+            ? `${o.name}: length not on file, fit unknown.`
+            : `${o.name}: fit cannot be checked because ${b.name} has no recorded length.`));
+        }
       }
     }
     $('#harbor-panel').replaceChildren(

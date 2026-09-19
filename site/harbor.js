@@ -114,7 +114,7 @@ const CSS = `
 const FT = {
   viewW: 600, viewH: 560, // the map; the container stretches it to its own width
   fender: 2,              // water between a hull's side and the berth face
-  gap: 10,                // water between hulls packed end to end (the rules' default clearance)
+  gap: 10,                // water between hulls packed end to end, when a berth has no clearance of its own
   nominal: 40,            // drawn length of a vessel whose length is unknown
   unnamed: 60,            // drawn length of an unknown berth whose length is unknown
   offshore: 90,           // how far out a hull waits before arriving / after departing
@@ -298,11 +298,11 @@ function faceOf(place, slot) {
 const byArrival = (a, b) => String(a.start).localeCompare(String(b.start)) || (a.id < b.id ? -1 : 1);
 
 /* Where each occupant goes along its berth. Vessels pack end to end from the shore end,
-   earliest arrival nearest the shore, FT.gap of water between them; if they add up to
+   earliest arrival nearest the shore, the berth's clearance of water between them; if they add up to
    more than the face, the last ones simply stick out past the end - that is the picture
    of an over-capacity day, but the verdict itself comes from the flags. Events and
    closures are bands across the whole berth (offset 0). On a comb, vessel k takes slot k. */
-function layOut(occupants, place) {
+function layOut(occupants, place, gap = FT.gap) {
   const spots = [];
   let cursor = 0, k = 0;                                   // cursor: feet along the face; k: vessels so far
   for (const occ of occupants.slice().sort(byArrival)) {
@@ -312,7 +312,7 @@ function layOut(occupants, place) {
       spots.push({ occ, offset: 8 * Math.floor(k / n), slot: k % n });
     } else {
       spots.push({ occ, offset: cursor, slot: 0 });
-      cursor += (occ.length_ft || FT.nominal) + FT.gap;
+      cursor += (occ.length_ft || FT.nominal) + gap;
     }
     k++;
   }
@@ -371,7 +371,8 @@ function select(view, id) {
 /* Redraw a hull's shape, colour, label, flags and hover text for today. */
 function paintHull(view, g, occ, b, geo, F) {
   const type = typeOf(occ);
-  const unknown = occ.kind === 'vessel' && (occ.length_ft == null || has(F.unknownLength, occ.id));
+  // "unknown" is a fact about the vessel (no length on file), never a flag from the rules
+  const unknown = occ.kind === 'vessel' && occ.length_ft == null;
   const over = has(F.overCapacity, b.id);
   // Overhang in feet, for a flagged misfit whose two lengths are known: drawing arithmetic, not a rule.
   const misfit = has(F.misfits, occ.id) && occ.length_ft != null && b.length_ft != null;
@@ -388,7 +389,8 @@ function paintHull(view, g, occ, b, geo, F) {
 
   // Name: inside the hull when it is long enough, otherwise beside it on the water side.
   const vertical = geo.angle % 180 !== 0;
-  const label = occ.kind === 'closure' ? `closed - ${occ.name}` : unknown ? `${occ.name} (length unknown)` : occ.name;
+  // the dashed hull and the hover text say "length unknown"; the label stays short so it fits the map
+  const label = occ.kind === 'closure' ? `closed - ${occ.name}` : occ.name;
   const inside = geo.L >= String(label).length * 6 + 16;
   const ty = inside ? 0 : geo.side * (geo.half + 8);
   const t = text(g, { class: 'name', 'dominant-baseline': 'middle', y: ty,
@@ -435,7 +437,7 @@ function setDay(view, dayIso, occupantsByBerthId, flags) {
   for (const b of view.berths) {
     const place = view.places.get(b.id);
     markBerth(view, b, F);
-    for (const { occ, offset, slot } of layOut(byBerth[b.id] || [], place)) {
+    for (const { occ, offset, slot } of layOut(byBerth[b.id] || [], place, b.clearance_ft != null ? b.clearance_ft : FT.gap)) {
       const geo = geometryFor(occ, place, offset, slot);
       const g = hullFor(view, occ, geo);
       view.occupants.set(occ.id, occ);
@@ -450,7 +452,7 @@ function setDay(view, dayIso, occupantsByBerthId, flags) {
 function normalFlags(flags) {
   const f = flags || {};
   return { overCapacity: toSet(f.overCapacity), unverifiable: toSet(f.unverifiable),
-           misfits: toSet(f.misfits), unknownLength: toSet(f.unknownLength) };
+           misfits: toSet(f.misfits), unknownLength: toSet(f.unknownLength) }; // unknownLength: vessels with no length on file
 }
 
 /* ---- 8. The berths: place each one, size the map, draw land, structures and faces ---- */
@@ -549,7 +551,8 @@ function create(container, opts) {
   view.map = document.createElement('div');
   view.map.className = 'harbor-map';
   container.appendChild(view.map);
-  view.svg = el('svg', { class: 'harbor-svg', viewBox: `0 0 ${FT.viewW} ${FT.viewH}`, role: 'img',
+  // role="group", not "img": an image's children are presentational, and the hulls inside are buttons
+  view.svg = el('svg', { class: 'harbor-svg', viewBox: `0 0 ${FT.viewW} ${FT.viewH}`, role: 'group',
                          'aria-label': 'Plan view of the waterfront berths' }, view.map);
   drawDefs(view);
   for (const name of ['land', 'structures', 'faces', 'labels', 'bands', 'hulls'])
