@@ -7,6 +7,14 @@ markers = ["slow: runs against the full sample workbook"]
 name = "dock-scheduler"
 version = "0.2.0"
 requires-python = ">=3.12,<3.13"
+dependencies = [
+    "fastapi==0.141.1",
+    "openpyxl==3.1.5",
+    "pydantic==2.13.5",
+    "starlette==1.6.0",
+    "uvicorn==0.53.0",
+    "psycopg[binary]==3.3.6",
+]
 
 [tool.vercel]
 entrypoint = "app:app"
