@@ -1,4 +1,8 @@
 """The API: every write goes through the referee."""
+import os
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -7,11 +11,12 @@ from dock.importer import import_workbook
 from tests.fixtures.make_fixture import build
 
 
-@pytest.fixture()
-def client(tmp_path, monkeypatch):
-    db_path = tmp_path / "test.db"
+@pytest.fixture(params=["sqlite"] + (["postgres"] if os.environ.get("TEST_DATABASE_URL") else []))
+def client(tmp_path, monkeypatch, request):
+    db_path = os.environ["TEST_DATABASE_URL"] if request.param == "postgres" else tmp_path / "test.db"
     result = import_workbook(build(tmp_path / "tiny.xlsx"))
     conn = db.connect(db_path)
+    db.initialize(conn)
     db.load_import(conn, result, {"totals": result.stats["totals"]})
     conn.close()
     monkeypatch.setattr(api, "DB_PATH", db_path)
@@ -168,3 +173,46 @@ def test_a_note_can_be_added_to_a_stay_the_referee_cannot_judge(client):
     out = client.patch(f"/api/reservations/{unknown['id']}", json={"notes": "checked by phone"})
     assert out.status_code == 200 and out.json()["check"] is None
     assert out.json()["reservation"]["notes"] == "checked by phone"
+
+
+def test_a_booking_survives_a_second_application_start(client):
+    face = berth_id(client, "North Pier Face")
+    saved = client.post("/api/reservations", json={"berth_id": face, "kind": "event",
+                        "title": "Persistence check", "start": "2026-12-01", "end": "2026-12-01"})
+    assert saved.status_code == 201
+    reservation_id = saved.json()["reservation"]["id"]
+    api.ensure_data()
+    assert client.get(f"/api/reservations/{reservation_id}").json()["title"] == "Persistence check"
+
+
+def test_simultaneous_full_berth_bookings_cannot_both_save(client):
+    face = berth_id(client, "North Pier Face")
+    ready = Barrier(2)
+
+    def book(title):
+        ready.wait(timeout=5)
+        return client.post("/api/reservations", json={"berth_id": face, "kind": "event", "title": title,
+                           "start": "2026-12-02", "end": "2026-12-02"}).status_code
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(book, ["Community sail day", "Student visit"]))
+    assert sorted(results) == [201, 409]
+
+
+def test_simultaneous_duplicate_vessels_return_a_conflict_instead_of_a_server_error(client):
+    ready = Barrier(2)
+
+    def create(_):
+        ready.wait(timeout=5)
+        return client.post("/api/vessels", json={"name": "R/V Concurrency", "length_ft": 50}).status_code
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(create, [1, 2]))
+    assert sorted(results) == [201, 409]
+
+
+def test_vercel_refuses_to_use_ephemeral_sqlite(monkeypatch, tmp_path):
+    monkeypatch.setenv("VERCEL", "1")
+    monkeypatch.setattr(api, "DB_PATH", tmp_path / "temporary.db")
+    with pytest.raises(RuntimeError, match="DATABASE_URL"):
+        api.ensure_data()

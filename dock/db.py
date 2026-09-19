@@ -20,12 +20,27 @@ from .models import Berth, CapacityMode, DayRange, Reservation, ReservationKind,
 SCHEMA = Path(__file__).with_name("schema.sql").read_text()
 
 
-def connect(path: str | Path = "dock.db") -> sqlite3.Connection:
+def connect(path: str | Path = "dock.db"):
+    if str(path).startswith(("postgres://", "postgresql://")):
+        from .postgres import PostgresConnection
+        return PostgresConnection(str(path))
     conn = sqlite3.connect(str(path), check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     conn.executescript(SCHEMA)
     return conn
+
+
+def initialize(conn) -> None:
+    if hasattr(conn, "initialize"):
+        conn.initialize(SCHEMA)
+
+
+def begin_write(conn) -> None:
+    if hasattr(conn, "begin_write"):
+        conn.begin_write()
+    else:
+        conn.execute("BEGIN IMMEDIATE")
 
 
 # ---------------------------------------------------------------- rows -> objects
@@ -185,11 +200,12 @@ def meta(conn: sqlite3.Connection, key: str) -> dict | None:
 def insert_vessel(conn: sqlite3.Connection, v: Vessel) -> Vessel:
     cur = conn.execute(
         "INSERT INTO vessels (name, name_key, type_prefix, length_ft, draft_ft, operator, rafts_ok, notes)"
-        " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        " VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
         (v.name, v.key, v.type_prefix, v.length_ft, v.draft_ft, v.operator, int(v.rafts_ok), v.notes),
     )
+    inserted_id = cur.fetchone()["id"]
     conn.commit()
-    return Vessel(v.name, v.length_ft, v.type_prefix, v.draft_ft, v.operator, v.rafts_ok, v.notes, id=cur.lastrowid)
+    return Vessel(v.name, v.length_ft, v.type_prefix, v.draft_ft, v.operator, v.rafts_ok, v.notes, id=inserted_id)
 
 
 def update_vessel(conn: sqlite3.Connection, vessel_id: int, fields: dict) -> Vessel | None:
@@ -210,15 +226,16 @@ def update_vessel(conn: sqlite3.Connection, vessel_id: int, fields: dict) -> Ves
 def insert_reservation(conn: sqlite3.Connection, r: Reservation) -> Reservation:
     cur = conn.execute(
         "INSERT INTO reservations (berth_id, kind, vessel_id, title, start_date, end_date, status,"
-        " override_reason, source, legacy_ref, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        " override_reason, source, legacy_ref, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
         (
             r.berth_id, r.kind.value, r.vessel.id if r.vessel else None, r.title,
             r.days.start.isoformat(), r.days.end.isoformat(), r.status,
             r.override_reason, r.source, r.legacy_ref, r.notes,
         ),
     )
+    inserted_id = cur.fetchone()["id"]
     conn.commit()
-    return reservation(conn, cur.lastrowid)  # type: ignore[return-value]
+    return reservation(conn, inserted_id)  # type: ignore[return-value]
 
 
 def update_reservation(conn: sqlite3.Connection, r: Reservation) -> Reservation:
@@ -241,7 +258,7 @@ def load_import(conn: sqlite3.Connection, result, audit_data: dict | None = None
 
     One transaction: if any row is refused by a constraint, the previous
     contents survive untouched instead of leaving an empty ledger."""
-    conn.execute("BEGIN IMMEDIATE")
+    begin_write(conn)
     try:
         _load_import_rows(conn, result, audit_data)
         conn.commit()
@@ -295,6 +312,8 @@ def _load_import_rows(conn: sqlite3.Connection, result, audit_data: dict | None)
     conn.execute("INSERT INTO meta (key, value) VALUES ('import_stats', ?)", (json.dumps(result.stats, default=str),))
     if audit_data is not None:
         conn.execute("INSERT INTO meta (key, value) VALUES ('audit', ?)", (json.dumps(audit_data, default=str),))
+    if hasattr(conn, "reset_sequences"):
+        conn.reset_sequences()
 
 
 def import_workbook_into(db_path: str | Path, workbook: str | Path) -> dict:
@@ -307,6 +326,7 @@ def import_workbook_into(db_path: str | Path, workbook: str | Path) -> dict:
     _, data = build_report(result)
     conn = connect(db_path)
     try:
+        initialize(conn)
         load_import(conn, result, data)
     finally:
         conn.close()

@@ -1,0 +1,10 @@
+.git
+.venv
+.pytest_cache
+__pycache__
+*.db
+tests
+docs
+prototypes
+site/harbor-demo.html
+site/data

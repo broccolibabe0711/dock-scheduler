@@ -614,7 +614,7 @@
   async function init() {
     const meta = await Data.init();
     const badge = $('#mode-badge');
-    badge.textContent = Data.mode === 'api' ? 'live · SQLite behind the API' : `read-only snapshot · ${meta.generated_on}`;
+    badge.textContent = Data.mode === 'api' ? 'Live · bookings saved' : `Read-only snapshot · ${meta.generated_on}`;
     badge.classList.toggle('static', Data.mode === 'static');
     $('#foot-note').textContent = `${meta.reservations || (meta.totals && meta.totals.reservations) || ''} reservations from ${meta.first_day || '?'} to ${meta.last_day || '?'}${Data.mode === 'static' ? `. ${meta.note}` : ''}`;
     state.berths = await Data.berths();
@@ -623,7 +623,12 @@
     state.day = last;
 
     $('#book-berth').replaceChildren(...state.berths.map((b) => el('option', { value: b.id, text: b.length_ft ? `${b.name} (${fmtFt(b.length_ft)}, ${b.capacity_mode})` : `${b.name} (${b.capacity_mode})` })));
-    $('#book-start').value = last; $('#book-end').value = last;
+    const now = new Date();
+    const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+    $('#book-start').value = Data.mode === 'api' ? today : last;
+    $('#book-end').value = $('#book-start').value;
+    $('#grid-today').onclick = () => { state.month = today.slice(0, 7); renderGrid(); };
+    $('#grid-history').onclick = () => { state.month = '2017-07'; renderGrid(); };
     wireTabs();
     $('#grid-prev').onclick = () => { const { y, m } = monthRange(state.month); state.month = m === 1 ? `${y - 1}-12` : `${y}-${pad(m - 1)}`; renderGrid(); };
     $('#grid-next').onclick = () => { const { y, m } = monthRange(state.month); state.month = m === 12 ? `${y + 1}-01` : `${y}-${pad(m + 1)}`; renderGrid(); };

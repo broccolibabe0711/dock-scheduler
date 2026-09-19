@@ -7,7 +7,7 @@ A reservation system for a marine research waterfront: berths of different lengt
 
 It also imports the facility's 23-year legacy schedule, records every ambiguity in it instead of guessing, and audits that history with the same rules that guard new bookings.
 
-**Live demo (read-only snapshot):** https://broccolibabe0711.github.io/dock-scheduler/ · **Plan and decisions:** [FRAMEWORK.md](FRAMEWORK.md) · **Audit of the legacy data:** [docs/AUDIT_REPORT.md](docs/AUDIT_REPORT.md)
+**Read-only history:** https://broccolibabe0711.github.io/dock-scheduler/ · **Operable Vercel deployment:** [setup and verification](docs/DEPLOY_VERCEL.md) · **Plan and decisions:** [FRAMEWORK.md](FRAMEWORK.md) · **Audit:** [docs/AUDIT_REPORT.md](docs/AUDIT_REPORT.md)
 
 Built as a take-home for Columbia Software Solutions.
 
@@ -44,7 +44,7 @@ python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt
 
 Open <http://127.0.0.1:8000>. The sample workbook is imported into `dock.db` on first start. The interactive API documentation is at <http://127.0.0.1:8000/docs>: try `POST /api/check` with a 120-foot vessel on the 75-foot North Pier Face and read the refusal.
 
-Tests (101, in under two seconds):
+Tests:
 
 ```bash
 .venv/bin/python -m pytest -q
@@ -72,7 +72,8 @@ dock/classify.py  what a grid cell's text is (vessel/event/closure/note)
 dock/registry.py  the messy Science/Yachts sheets -> vessels with lengths
 dock/importer.py  23 year grids -> reservations + annotations + issues
 dock/audit.py     the rules over history -> docs/AUDIT_REPORT.md
-dock/db.py        SQLite (schema.sql with CHECK constraints), rows <-> objects
+dock/db.py        SQLite locally, PostgreSQL on Vercel; rows <-> objects
+dock/postgres.py  PostgreSQL adapter, schema initialization and transaction lock
 dock/api.py       FastAPI: parse -> call the referee -> return findings
 dock/export.py    JSON snapshot for the static demo
 site/             vanilla HTML/CSS/JS, no build step; runs on the API or on the snapshot
@@ -80,7 +81,12 @@ tests/            rules (table-driven, sentence-named), importer (fixture + real
 docs/decisions/   one paragraph per decision; docs/ASSUMPTIONS.md; docs/data-study/ the analysis behind it all
 ```
 
-Python 3.12, standard-library `sqlite3`, `openpyxl`, FastAPI, `pytest`. No JavaScript toolchain.
+Python 3.12, standard-library `sqlite3`, `openpyxl`, FastAPI, `psycopg`, `pytest`. No JavaScript toolchain.
+
+On Vercel, `DATABASE_URL` selects persistent PostgreSQL. Missing database configuration
+stops startup instead of losing edits in temporary storage. See [deployment instructions](docs/DEPLOY_VERCEL.md)
+and [decision 8](docs/decisions/0008-persistent-vercel-deployment.md). CI runs API workflows
+against both storage engines, including simultaneous booking conflicts and restart persistence.
 
 Every write goes `request -> rules.check() -> 409 with findings, or saved`. The front end never computes a rule; it renders findings. The GitHub Pages demo is a snapshot exported by Python, so it cannot disagree with the app ([decision 6](docs/decisions/0006-static-demo-without-rules-in-javascript.md)).
 

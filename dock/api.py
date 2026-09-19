@@ -24,25 +24,36 @@ from . import db, rules
 from .models import Berth, CheckResult, DayLoad, DayRange, Finding, Reservation, ReservationKind, Vessel
 
 ROOT = Path(__file__).resolve().parents[1]
-DB_PATH = Path(os.environ.get("DOCK_DB", ROOT / "dock.db"))
+DB_PATH = os.environ.get("DATABASE_URL") or os.environ.get("DOCK_DB", str(ROOT / "dock.db"))
 SAMPLE = ROOT / "data" / "Dock Schedule - Synthetic Sample.xlsx"
 SITE = ROOT / "site"
 log = logging.getLogger("dock")
 
 def ensure_data() -> None:
-    """First run: import the sample so the app is never empty."""
+    """Seed once under a database lock, including concurrent Vercel cold starts."""
+    if os.environ.get("VERCEL") and not str(DB_PATH).startswith(("postgres://", "postgresql://")):
+        raise RuntimeError("Set DATABASE_URL to a persistent PostgreSQL database before deploying on Vercel.")
     conn = db.connect(DB_PATH)
     try:
-        empty = conn.execute("SELECT COUNT(*) FROM berths").fetchone()[0] == 0
+        db.initialize(conn)
+        db.begin_write(conn)
+        empty = conn.execute("SELECT COUNT(*) AS n FROM berths").fetchone()["n"] == 0
+        if empty:
+            if not SAMPLE.exists():
+                raise RuntimeError("The sample workbook is missing; the ledger cannot be initialized.")
+            from .audit import build_report
+            from .importer import import_workbook
+            result = import_workbook(SAMPLE)
+            result.stats["source"] = SAMPLE.name
+            _, data = build_report(result)
+            db._load_import_rows(conn, result, data)
+            log.info("Imported sample: %s", data["totals"])
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
-    if not empty:
-        return
-    if not SAMPLE.exists():
-        log.warning("database %s is empty and no workbook found at %s; starting with no data", DB_PATH, SAMPLE)
-        return
-    data = db.import_workbook_into(DB_PATH, SAMPLE)
-    log.info("imported %s into %s: %s", SAMPLE.name, DB_PATH, data["totals"])
 
 
 @asynccontextmanager
@@ -196,6 +207,8 @@ def get_meta(conn=Depends(get_db)) -> dict:
                        " FROM reservations WHERE status <> 'cancelled'").fetchone()
     stats = db.meta(conn, "import_stats") or {}
     return {"mode": "api", "first_day": row["first_day"], "last_day": row["last_day"],
+            "storage": "postgres" if str(DB_PATH).startswith(("postgres://", "postgresql://")) else "sqlite",
+            "persistent": True,
             "reservations": row["n"], "totals": stats.get("totals", {}), "source": stats.get("source", "")}
 
 
@@ -211,6 +224,7 @@ def list_vessels(q: str = "", limit: int = Query(50, le=1000), conn=Depends(get_
 
 @app.post("/api/vessels", status_code=201)
 def create_vessel(body: VesselIn, conn=Depends(get_db)) -> dict:
+    db.begin_write(conn)
     if db.vessel_by_name(conn, body.name) is not None:
         raise HTTPException(409, f"a vessel named like {body.name!r} already exists")
     try:
@@ -223,6 +237,7 @@ def create_vessel(body: VesselIn, conn=Depends(get_db)) -> dict:
 @app.patch("/api/vessels/{vessel_id}")
 def patch_vessel(vessel_id: int, body: VesselPatch, conn=Depends(get_db)) -> dict:
     """Change vessel facts. Sending a field as null clears it (a length can go back to unknown)."""
+    db.begin_write(conn)
     if db.vessel(conn, vessel_id) is None:
         raise HTTPException(404, f"no vessel with id {vessel_id}")
     changes = {k: getattr(body, k) for k in body.model_fields_set}
@@ -266,11 +281,11 @@ def create_reservation(body: ReservationIn, conn=Depends(get_db)) -> dict:
     """Save a booking. Blocking verdicts are refused (409) unless override_reason is given."""
     if body.id is not None:
         raise HTTPException(422, "id is only accepted by /api/check; a new booking has no id yet")
-    candidate, berth = _candidate(conn, body)
     # judge and save inside one write transaction, so two coordinators booking the
     # same berth at the same moment cannot both pass the check
-    conn.execute("BEGIN IMMEDIATE")
+    db.begin_write(conn)
     try:
+        candidate, berth = _candidate(conn, body)
         result = _judge(conn, candidate, berth)
         if result.blocking and not (candidate.override_reason or "").strip():
             conn.rollback()
@@ -289,6 +304,7 @@ def patch_reservation(reservation_id: int, body: ReservationPatch, conn=Depends(
 
     Only a change of berth, dates or status is judged; a note or an override
     reason on its own is saved as it is. Cancelling never needs a check."""
+    db.begin_write(conn)
     current = db.reservation(conn, reservation_id)
     if current is None:
         raise HTTPException(404, f"no reservation with id {reservation_id}")
@@ -312,7 +328,6 @@ def patch_reservation(reservation_id: int, body: ReservationPatch, conn=Depends(
     if not judged:
         saved = db.update_reservation(conn, updated)
         return {"reservation": reservation_json(saved), "check": None}
-    conn.execute("BEGIN IMMEDIATE")
     try:
         result = _judge(conn, updated, berth)
         # a blocking verdict needs a reason given in THIS request; one stored earlier

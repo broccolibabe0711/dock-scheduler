@@ -28,3 +28,5 @@ node_modules/
 # --- Secrets: never commit these ---
 .env
 .env.*
+!.env.example
+.vercel/
