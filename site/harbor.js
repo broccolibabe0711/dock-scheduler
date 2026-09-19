@@ -199,7 +199,7 @@ const PLACES = {
   'South Float West': (g, L) => float(300, L),
   'South Float East': (g, L) => float(420, L),
   'North Finger Piers': g => Object.assign(comb(g.pierR, 65, 4, 36, 36),
-    { label: { x: g.pierR + 3, y: 37, anchor: 'start', lines: ['North Finger Piers - 4 slips'] },
+    { label: { x: g.pierR + 3, y: 37, anchor: 'start', lines: ['North Finger Piers (schematic)'] },
       flag: [g.pierR - 10, 37] }),
   'Small craft slips (institution boats)': () => {
     const c = comb(52, 331, 5, 22, 26);

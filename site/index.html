@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dock Scheduler</title>
-<meta name="description" content="Berth reservations for a research waterfront: conflict and fit checking, 23 years of history, and a to-scale harbor view.">
-<link rel="stylesheet" href="style.css">
+<meta name="description" content="Berth reservations with explained fit and capacity checks, reviewed measurements, and a harbor view of 23 years of history.">
+  <link rel="stylesheet" href="style.css?v=20260919-review2">
 </head>
 <body>
 <header class="top">
@@ -33,16 +33,17 @@
       <button id="grid-next" aria-label="Next month" title="Next month">▶</button>
       <button id="grid-today">Today</button>
       <button id="grid-history">Sample history</button>
-      <span class="hint">Click a bar for details. Click an empty day to start a booking there (or use the Book tab).</span>
+      <span class="hint">Select a bar for details or editing. In the day grid, use arrow keys to move and Enter to book.</span>
     </div>
     <div id="grid" class="grid"></div>
     <div class="legend" id="grid-legend"></div>
+    <div id="grid-notes"></div>
     <p class="sr-only" id="grid-status" aria-live="polite"></p>
   </section>
 
   <section id="view-book" class="view" hidden role="tabpanel" aria-labelledby="tab-book">
     <form id="book-form" class="book" autocomplete="off">
-      <p class="static-only" hidden>This is the read-only snapshot on GitHub Pages: booking runs the Python rules, so it needs the app running locally (three commands in the README).</p>
+      <p class="static-only" hidden>This is the read-only history snapshot. <a href="https://dock-scheduler-henna.vercel.app/#book">Open the live app to book.</a></p>
       <div class="row">
         <label>Kind
           <select name="kind" id="book-kind">
@@ -62,10 +63,10 @@
       </div>
       <div class="row" id="vessel-facts" hidden>
         <span id="vessel-summary"></span>
-        <label id="vessel-length-wrap" hidden>Length overall (ft)
-          <input type="number" id="vessel-length" min="1" step="1">
-          <button type="button" id="vessel-length-save">Save length</button>
-        </label>
+        <div id="vessel-length-wrap" hidden>
+          <label>Length overall (ft) <input type="number" id="vessel-length" min="0.1" step="any"></label>
+          <button type="button" id="vessel-length-save">Review / save length</button>
+        </div>
       </div>
       <div class="row">
         <label>Berth <select id="book-berth" required></select></label>
@@ -98,8 +99,10 @@
       <button id="harbor-play" aria-pressed="false">▶ Play</button>
       <button id="harbor-today">Today</button>
       <button id="harbor-history">Sample history</button>
-      <span class="hint">One day per step. Hulls are drawn to scale; red means the referee found a conflict that day.</span>
+      <button id="harbor-example">Fit example · 2010</button>
+      <span class="hint">Try Sample history for a closure overlap, or Fit example for a vessel that is too long.</span>
     </div>
+    <p class="hint">Schematic layout. Known vessel and berth lengths share one scale; dashed hulls have unknown lengths. <a href="guide.html#rules-and-assumptions">Rules and assumptions</a></p>
     <div class="harbor-layout">
       <div id="harbor" class="harbor"></div>
       <aside id="harbor-panel" class="panel" aria-live="polite"></aside>
@@ -136,19 +139,62 @@
   <div class="detail-card">
     <h2 id="detail-title"></h2>
     <div id="detail-body"></div>
+    <form id="edit-form" hidden>
+      <h3>Edit this reservation</h3>
+      <div class="row">
+        <label>Berth <select id="edit-berth" required></select></label>
+        <label>Status <select id="edit-status"><option value="planned">Planned</option><option value="confirmed">Confirmed</option><option value="cancelled">Cancelled</option></select></label>
+      </div>
+      <div class="row">
+        <label>From <input type="date" id="edit-start" required></label>
+        <label>To (inclusive) <input type="date" id="edit-end" required></label>
+      </div>
+      <label>Notes <textarea id="edit-notes" rows="2"></textarea></label>
+      <label id="edit-override-wrap" hidden>Reason for this exception <input id="edit-override" placeholder="Explain why this changed booking is acceptable"></label>
+      <p class="hint">Changes to berth, dates or status are checked again. A previous override does not cover a new change. Notes alone can be updated.</p>
+      <div class="row actions">
+        <button type="button" id="edit-check">Check changes</button>
+        <button type="submit" id="edit-save" class="primary">Save changes</button>
+        <button type="button" id="edit-discard">Discard edits</button>
+      </div>
+      <div id="edit-result" role="status" aria-live="polite"></div>
+    </form>
     <div class="row actions">
+      <button type="button" id="detail-edit" hidden>Edit reservation</button>
       <button type="button" id="detail-cancel" hidden>Cancel this reservation</button>
       <button type="button" id="detail-close">Close</button>
     </div>
   </div>
 </dialog>
 
+<dialog id="measurement" class="detail" aria-labelledby="measurement-title">
+  <div class="detail-card">
+    <h2 id="measurement-title">Review vessel length</h2>
+    <p>Preview how a corrected measurement changes existing bookings, including neighbouring vessels.</p>
+    <form id="measurement-form">
+      <label>New length overall (ft) <input type="number" id="measurement-length" min="0.1" step="any" aria-describedby="measurement-help"></label>
+      <p id="measurement-help" class="hint">Leave blank to mark the length unknown. Preview does not save anything.</p>
+      <div class="row actions"><button type="button" id="measurement-preview">Preview impact</button></div>
+      <div id="measurement-impact" aria-live="polite"></div>
+      <label id="measurement-reason-wrap" hidden>Review reason <textarea id="measurement-reason" rows="2" maxlength="2000" placeholder="Source of the correction and how affected bookings will be handled"></textarea></label>
+      <div class="row actions">
+        <button type="submit" id="measurement-save" class="primary" disabled>Save reviewed measurement</button>
+        <button type="button" id="measurement-close">Close</button>
+      </div>
+      <p id="measurement-status" role="status" aria-live="polite"></p>
+    </form>
+    <details><summary>Measurement change history</summary><div id="measurement-history"></div></details>
+  </div>
+</dialog>
+
 <footer class="foot">
   <span id="foot-note"></span>
+  <a href="guide.html#rules-and-assumptions">Rules &amp; assumptions</a>
+  <a href="guide.html">How it works</a>
   <a href="https://github.com/broccolibabe0711/dock-scheduler">Source and decisions on GitHub</a>
 </footer>
 
-<script src="harbor.js"></script>
-<script src="app.js"></script>
+<script src="harbor.js?v=20260919-review2"></script>
+<script src="app.js?v=20260919-review2"></script>
 </body>
 </html>

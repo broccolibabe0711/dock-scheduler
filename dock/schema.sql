@@ -42,6 +42,19 @@ CREATE TABLE IF NOT EXISTS reservations (
 );
 CREATE INDEX IF NOT EXISTS ix_reservations_berth_dates ON reservations (berth_id, start_date, end_date);
 
+-- Measurement corrections and the bookings reviewed with them. Additive so an
+-- existing deployment upgrades without replacing any reservations.
+CREATE TABLE IF NOT EXISTS vessel_changes (
+    id            INTEGER PRIMARY KEY,
+    vessel_id     INTEGER NOT NULL REFERENCES vessels(id),
+    length_before REAL,
+    length_after  REAL,
+    reason        TEXT NOT NULL,
+    impact        TEXT NOT NULL,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS ix_vessel_changes_vessel ON vessel_changes (vessel_id, id);
+
 CREATE TABLE IF NOT EXISTS annotations (
     id         INTEGER PRIMARY KEY,
     berth_id   INTEGER REFERENCES berths(id),

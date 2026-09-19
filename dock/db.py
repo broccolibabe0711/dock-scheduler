@@ -24,6 +24,8 @@ def connect(path: str | Path = "dock.db"):
     if str(path).startswith(("postgres://", "postgresql://")):
         from .postgres import PostgresConnection
         return PostgresConnection(str(path))
+    if "://" in str(path):
+        raise ValueError("Use a postgresql:// URL or a local SQLite file path.")
     conn = sqlite3.connect(str(path), check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
@@ -208,7 +210,7 @@ def insert_vessel(conn: sqlite3.Connection, v: Vessel) -> Vessel:
     return Vessel(v.name, v.length_ft, v.type_prefix, v.draft_ft, v.operator, v.rafts_ok, v.notes, id=inserted_id)
 
 
-def update_vessel(conn: sqlite3.Connection, vessel_id: int, fields: dict) -> Vessel | None:
+def update_vessel(conn: sqlite3.Connection, vessel_id: int, fields: dict, *, commit: bool = True) -> Vessel | None:
     """Apply the given fields; a None value clears the column (length back to unknown)."""
     allowed = {"name", "length_ft", "draft_ft", "type_prefix", "operator", "rafts_ok", "notes"}
     changes = {k: v for k, v in fields.items() if k in allowed}
@@ -219,8 +221,24 @@ def update_vessel(conn: sqlite3.Connection, vessel_id: int, fields: dict) -> Ves
     if changes:
         sets = ", ".join(f"{k} = ?" for k in changes)
         conn.execute(f"UPDATE vessels SET {sets} WHERE id = ?", (*changes.values(), vessel_id))
-        conn.commit()
+        if commit:
+            conn.commit()
     return vessel(conn, vessel_id)
+
+
+def record_vessel_change(conn, before: Vessel, after: Vessel, reason: str, impact: dict) -> int:
+    """Part of the caller's transaction, so the measurement and its review stay together."""
+    row = conn.execute(
+        "INSERT INTO vessel_changes (vessel_id, length_before, length_after, reason, impact)"
+        " VALUES (?, ?, ?, ?, ?) RETURNING id",
+        (before.id, before.length_ft, after.length_ft, reason, json.dumps(impact)),
+    ).fetchone()
+    return row["id"]
+
+
+def vessel_changes(conn, vessel_id: int) -> list[dict]:
+    rows = conn.execute("SELECT * FROM vessel_changes WHERE vessel_id = ? ORDER BY id DESC LIMIT 50", (vessel_id,))
+    return [{**dict(r), "impact": json.loads(r["impact"])} for r in rows]
 
 
 def insert_reservation(conn: sqlite3.Connection, r: Reservation) -> Reservation:
@@ -268,7 +286,7 @@ def load_import(conn: sqlite3.Connection, result, audit_data: dict | None = None
 
 
 def _load_import_rows(conn: sqlite3.Connection, result, audit_data: dict | None) -> None:
-    for table in ("annotations", "reservations", "tours", "import_issues", "vessels", "berths", "meta"):
+    for table in ("vessel_changes", "annotations", "reservations", "tours", "import_issues", "vessels", "berths", "meta"):
         conn.execute(f"DELETE FROM {table}")
     conn.executemany(
         "INSERT INTO berths (id, name, length_ft, capacity_mode, clearance_ft, active_from, active_to)"

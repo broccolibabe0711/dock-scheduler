@@ -15,6 +15,8 @@ or **Sample history** to explore July 2017.
 
 Built as a take-home for Columbia Software Solutions.
 
+**Understand and test it:** [Website guide and assumptions](https://dock-scheduler-henna.vercel.app/guide.html) · [Engineering walkthrough](docs/ENGINEERING_WALKTHROUGH.md) · [Acceptance tests and rehearsal questions](docs/ACCEPTANCE_TESTS.md).
+
 ## What the legacy data says
 
 Numbers from `python -m dock.audit` on the sample workbook:
@@ -22,11 +24,11 @@ Numbers from `python -m dock.audit` on the sample workbook:
 | | |
 |---|---|
 | Month grids read | 272 blocks across 23 sheets, three layout eras |
-| Cell runs read | 2,244 (80 sat outside a block's day columns and were logged, not read); a third have end dates inferred from cell colouring |
+| Cell runs | 2,244 encountered; 80 outside day columns excluded; 2,164 read |
 | Reservations after stitching month-split stays | 1,982 (122 stitched) |
 | Notes kept as annotations, not bookings | 46 ("ETA 1200", "Fuel truck"…) |
-| Vessel names, after case normalisation | 504 in the grids; only 33 of 1,927 vessel stays have a known length |
-| Vessels longer than the berth they were given | 9 |
+| Vessel names, after case normalisation | 504 in the grids; only 33 of 1,927 vessel stays have a known length (98.3% of stays unknown) |
+| Reservations with vessels longer than their berth | 9 records involving 5 distinct vessel names |
 | Stays over a closed berth | 1 |
 | Anomalies logged instead of silently fixed | 479 (mislabelled months, merges past the month end, duplicated rows, text in header rows…) |
 
@@ -48,7 +50,7 @@ python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt
 
 Open <http://127.0.0.1:8000>. The sample workbook is imported into `dock.db` on first start. The interactive API documentation is at <http://127.0.0.1:8000/docs>: try `POST /api/check` with a 120-foot vessel on the 75-foot North Pier Face and read the refusal.
 
-Tests:
+Tests (SQLite by default; set `TEST_DATABASE_URL` to a disposable PostgreSQL database to test both engines; CI supplies one):
 
 ```bash
 .venv/bin/python -m pytest -q
@@ -62,10 +64,14 @@ Regenerate the audit report and the static snapshot:
 
 ## What you can do in it
 
+- **Harbor is the default landing view.** Sample history opens the July 2017 closure overlap; Fit example opens the July 2010 overhang. Known lengths share a scale; geometry and widths are schematic, and unknown hulls use a labelled 40 ft placeholder.
 - **Grid**: the month grid the coordinator already knows, with bars for stays, red underlines on days a berth is over capacity, amber where a length is missing. Click an empty day to start a booking there.
 - **Book**: pick a vessel (or type a new one), berth and dates. *Check* returns a verdict and findings in words and numbers; *Suggest a berth* ranks alternatives, smallest fitting berth first; *Save* refuses blocking verdicts unless you write an override reason, which is kept on the record.
 - **Harbor**: a plan of the waterfront drawn to one scale. Hulls are sized to their real length; step or play through days; over-capacity berths pulse, over-length hulls overhang with a "+45 ft" badge, unknown lengths are dashed.
 - **Audit** and **Issues**: the legacy history judged by the same rules, and everything the importer logged.
+- **Vessel registries**: search dimensions, inspect notes, open the source workbook, and preview a length correction before saving. Blocking impacts require a reason tied to the current preview. The measurement, its before/after findings and the reason are saved together.
+- **Edit reservations** from a Grid bar or Harbor hull: change dates, berth, status or notes. The API rechecks changes to occupancy. A previous override does not authorize a new conflicting edit.
+- **Operational notes and provenance**: imported annotations appear under Grid and Harbor. Details explain when a historical span was inferred from cell colour or repeated names.
 
 ## How it is built
 
@@ -92,7 +98,9 @@ stops startup instead of losing edits in temporary storage. See [deployment inst
 and [decision 8](docs/decisions/0008-persistent-vercel-deployment.md). CI runs API workflows
 against both storage engines, including simultaneous booking conflicts and restart persistence.
 
-Every write goes `request -> rules.check() -> 409 with findings, or saved`. The front end never computes a rule; it renders findings. The GitHub Pages demo is a snapshot exported by Python, so it cannot disagree with the app ([decision 6](docs/decisions/0006-static-demo-without-rules-in-javascript.md)).
+New bookings and edits to occupancy go `request -> rules.check() -> 409 with findings, or saved`. Notes-only edits and cancellations are allowed. Measurement corrections recheck affected bookings, including neighbours, and store an explicit review when blocking findings remain. The front end renders server decisions. The GitHub Pages snapshot uses the same Python rules but reflects the original workbook, not later live edits ([decision 6](docs/decisions/0006-static-demo-without-rules-in-javascript.md)).
+
+The **Audit tab is a historical import snapshot**. Grid, Harbor and the registry use current live data. The additive `vessel_changes` table keeps measurement reviews; it is not a complete, authenticated edit log. See [decision 9](docs/decisions/0009-reviewed-measurement-changes.md).
 
 ## The rules in one screen
 

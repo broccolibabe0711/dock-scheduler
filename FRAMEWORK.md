@@ -3,14 +3,16 @@
 **Deployment update, 19 September 2026:** The requested operable website is at
 <https://dock-scheduler-henna.vercel.app>. Vercel runs FastAPI with persistent Neon
 PostgreSQL; local development keeps SQLite. The deployment work and verification
-are documented in `docs/DEPLOY_VERCEL.md` and decision 0008. The 124-test suite
-includes API workflows on both databases. The older Pages sections below describe
+are documented in `docs/DEPLOY_VERCEL.md` and decisions 0008–0009. The test suite
+includes API and storage workflows on both databases. The older Pages sections below describe
 the historical read-only demo, which remains available separately.
 
 **For:** Baron Zhang's take-home for Columbia Software Solutions
 **Written:** 18 September 2026 (before any application code exists)
 **Budget:** about 6 hours of Baron's own time, working with Claude Code as a pair
 **Status of this document:** the plan, written before any code. The build followed it; the section right below records where reality differed. Every later decision is in `docs/decisions/`.
+
+**Current product documentation:** `docs/ENGINEERING_WALKTHROUGH.md` explains the implemented website and `docs/ACCEPTANCE_TESTS.md` provides reproducible acceptance tasks. The original proposals below are retained as design history.
 
 ---
 
@@ -22,17 +24,19 @@ the historical read-only demo, which remains available separately.
 | 1 Assumptions | 0.5 h | Done as `docs/ASSUMPTIONS.md` (20 numbered items) with the defaults from Section 8.2. |
 | 2 Rules engine | 1.0 h | Done. `dock/rules.py` + `dock/models.py`; 60 sentence-named tests; three review passes found real gaps (string enums, NaN lengths, orphaned stays, known sums downgraded to UNKNOWN) that became decision 0007 and tests. |
 | 3 Importer and audit | 1.0 h | Done. Reproduces the independent data study's extraction; 479 issues logged on the sample; `docs/AUDIT_REPORT.md` generated. A review found the damaged 2010 blocks' true day-1 row sits above the header; fixed and tested. |
-| 4 Storage and API | 0.5 h | Done. SQLite with CHECK constraints; FastAPI with `/docs`; every write judged inside one transaction; a stored override never exempts a later edit. |
-| 5 UI and harbor view | 1.0 h | Done. Grid, Book, Harbor, Audit, Issues; the harbor module was built from the standalone prototype and driven by API data. |
+| 4 Storage and API | 0.5 h | Done. SQLite/PostgreSQL with constraints and atomic booking checks; occupancy edits need fresh overrides; measurement edits preview and record affected bookings. |
+| 5 UI and harbor view | 1.0 h | Done. Harbor is the landing view; six tabs including Vessel registries. Reservation editing, measurement review, imported notes and assumptions are accessible from the website. |
 | 6 Static demo, README | 0.75 h | Done. `python -m dock.export` writes the snapshot; the same front end runs on it; conflict flags come from the same function the API serves. |
-| 7 Review and rehearsal | 0.75 h | Reviews done (six agent passes, findings fixed, 101 tests). Rehearsal is Baron's. |
+| 7 Review and rehearsal | 0.75 h | Regression suites cover both databases; browser acceptance checks cover edits and measurement reviews. Current results are recorded with the release. Rehearsal remains Baron's. |
+| 8 Operable deployment (added) | — | FastAPI on Vercel with Neon PostgreSQL; missing persistent configuration prevents startup. |
 
 **Where the plan changed, and why.**
 
-- The audit found **0 berth-days over capacity** in the legacy grid, not the dramatic number the "archaeologist" proposal hoped for. The grid physically could not double-book a row; the story became "the spreadsheet made double-booking impossible to write down and therefore impossible to see", which the duplicated rows and the shared-face model support. The honest number is the better talking point.
+- The audit found **0 detected berth-days over capacity** with the available measurements. Missing lengths limit that conclusion. Nine reservation records fail the individual fit check, twelve shared berth-days are unverifiable and one stay overlaps a closure. Duplicate berth rows support the shared-face model.
 - Only **33 of 1,927** vessel stays have a known length, so "UNKNOWN is not OK" (decision 0003) is the common case in history, not an edge case, and the audit reports "unverifiable" days rather than pretending.
 - The harbor view and the audit page label a **closure-shared day** differently by design: the audit counts feet arithmetic and lists closures separately; the grid and harbor paint any day the referee would refuse. The audit page says so.
 - Six review passes were run instead of one per phase, because the first pass on the rules engine paid for itself immediately (Section 7 gate, decision 0007).
+- Hosting expanded to a persistent Vercel deployment at the user's request. Measurement correction now includes a preview, a reason for blocking outcomes, protection against stale acknowledgement, and a durable review record (decision 0009). The pending PostgreSQL hardening was integrated; concurrent startup testing now includes actual seeding.
 
 ---
 
@@ -156,7 +160,7 @@ Point-in-time visits (date, time, guide, guest organisation, headcount, vessel),
 
 **Users.** One dock coordinator (the person who today edits the grid), occasionally a colleague reading it. No public users, no accounts in v1.
 
-**The system is a ledger with a referee.** Reservations are the ledger; the rules engine is the referee that every write passes through. Everything else (import, UI, reports, the harbor view) reads from the ledger or the referee.
+**The system is a ledger with a referee.** Reservations are the ledger; the rules engine judges new bookings and changes to occupancy. Measurement corrections review affected bookings. Notes-only edits and cancellations have explicit exceptions. Import, UI, reports and Harbor read from the ledger or the rule results.
 
 **The two questions, made precise.**
 
@@ -275,7 +279,7 @@ The importer is the second product, and the one with the most decisions:
 9. **Cells outside the day columns, legend rows, text in unlabelled rows**: recorded as issues with the raw text, never as reservations. Unlabelled rows that sit where finger-pier rows later appear are noted as "probably North Finger Piers" but not assigned.
 10. **Reconciliation** against the 8YR summary is computed and printed side by side, with the explanation from Section 2.4.
 
-The importer's output is therefore three tables (reservations, annotations, issues) and one report, `docs/AUDIT_REPORT.md`, whose first lines are numbers like "2,244 stays imported, 733 with inferred end dates, 27 shared-berth days that exceed capacity, N vessels in berths shorter than themselves, 96% of stays with unknown vessel length". Those numbers are the opening of the README.
+The importer's verified output is 1,982 reservations, 46 annotations and 479 issues. It reads 2,164 of 2,244 encountered runs, excludes fourteen repeated-month runs, separates annotations and stitches 122 month-boundary fragments. Of 1,927 vessel stays, 1,894 (98.3%) lack a known length. The generated `docs/AUDIT_REPORT.md` records findings with their denominators.
 
 ### 4.6 The user interface
 

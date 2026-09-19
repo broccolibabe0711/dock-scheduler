@@ -146,7 +146,7 @@ def render_markdown(data: dict) -> str:
         f"| Distinct vessels (grid and registries) | {t['vessels']}, {t['vessels_with_length']} with a known length |",
         f"| Vessel stays whose vessel has a known length | {data['vessel_stays_with_length']} of {data['vessel_stays']} |",
         f"| Berth-days over capacity | {data['audit_counts']['over_capacity_days']} |",
-        f"| Vessels assigned to a berth shorter than themselves | {data['audit_counts']['misfits']} |",
+        f"| Reservation records with a vessel longer than its berth | {data['audit_counts']['misfits']} |",
         f"| Shared berth-days that cannot be verified (a length is missing) | {data['audit_counts']['unverifiable_days']} |",
         f"| Stays overlapping a closure | {data['audit_counts']['closure_conflicts']} |",
         f"| Issues the importer logged instead of guessing | {t['issues']} |",

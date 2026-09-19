@@ -2,16 +2,18 @@
 
     .venv/bin/uvicorn dock.api:app --reload      then open http://127.0.0.1:8000
 
-Every write goes through rules.check(). A blocking verdict (CONFLICT or
-UNKNOWN) is refused with 409 unless the request carries an override_reason,
-which is then stored on the reservation. Routes never compute rules
-themselves, and the front end only renders the findings they return.
+New bookings and changes to occupancy go through rules.check(). Blocking
+verdicts require a recorded override. Length corrections recheck affected
+bookings and record their review. Notes-only edits and cancellation are allowed.
 """
 from __future__ import annotations
 
 import logging
 import os
+import hashlib
+import json
 from contextlib import asynccontextmanager
+from dataclasses import replace
 from datetime import date
 from pathlib import Path
 from typing import Iterator, Literal
@@ -63,7 +65,7 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="Dock Scheduler", version="0.1.0", lifespan=lifespan,
-              description="Berth reservations with conflict and fit checking. Every write passes rules.check().")
+              description="Berth reservations with fit checks, explained conflicts and reviewed measurement changes.")
 
 
 def get_db() -> Iterator:
@@ -168,6 +170,56 @@ class VesselPatch(BaseModel):
     operator: str | None = None
     rafts_ok: bool | None = None
     notes: str | None = None
+    impact_reason: str | None = Field(default=None, max_length=2000)
+    impact_token: str | None = None
+
+
+def _vessel_edit(conn, vessel_id: int, body: VesselPatch) -> tuple[Vessel, Vessel, dict]:
+    current = db.vessel(conn, vessel_id)
+    if current is None:
+        raise HTTPException(404, f"no vessel with id {vessel_id}")
+    changes = body.model_dump(exclude_unset=True, exclude={"impact_reason", "impact_token"})
+    if not changes:
+        raise HTTPException(422, "no changes given")
+    for field in ("name", "notes", "rafts_ok"):
+        if field in changes and changes[field] is None:
+            raise HTTPException(422, f"{field} cannot be null")
+    try:
+        proposed = replace(current, **changes)
+    except ValueError as e:
+        raise HTTPException(422, str(e)) from e
+    other = db.vessel_by_name(conn, proposed.name)
+    if other is not None and other.id != vessel_id:
+        raise HTTPException(409, f"a vessel named like {proposed.name!r} already exists")
+    return current, proposed, changes
+
+
+def _length_impact(conn, before: Vessel, after: Vessel) -> dict:
+    """Recheck this vessel's stays and their neighbours; rule decisions stay in rules.py."""
+    items = []
+    if before.length_ft != after.length_ft:
+        old = db.reservations(conn)
+        own = [r for r in old if r.vessel and r.vessel.id == before.id]
+        affected = {r.id for r in own}
+        for r in own:
+            affected.update(o.id for o in rules.overlapping(r, old))
+        new = [replace(r, vessel=after) if r.vessel and r.vessel.id == before.id else r for r in old]
+        berths = {b.id: b for b in db.berths(conn)}
+        for previous, updated in zip(old, new):
+            if updated.id not in affected:
+                continue
+            berth = berths[updated.berth_id]
+            items.append({
+                "reservation": reservation_json(updated), "berth": berth.name,
+                "before": result_json(rules.check(previous, berth, old)),
+                "after": result_json(rules.check(updated, berth, new)),
+            })
+    # The token binds an acknowledgement to the current facts and affected stays.
+    # If another coordinator changes them, saving returns a fresh review instead.
+    payload = {"before": vessel_json(before), "after": vessel_json(after), "reservations": items}
+    token = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
+    return {"reservations": items, "affected_count": len(items),
+            "blocking_count": sum(i["after"]["blocking"] for i in items), "token": token}
 
 
 def _candidate(conn, body: ReservationIn) -> tuple[Reservation, Berth]:
@@ -238,19 +290,38 @@ def create_vessel(body: VesselIn, conn=Depends(get_db)) -> dict:
 def patch_vessel(vessel_id: int, body: VesselPatch, conn=Depends(get_db)) -> dict:
     """Change vessel facts. Sending a field as null clears it (a length can go back to unknown)."""
     db.begin_write(conn)
+    try:
+        current, proposed, changes = _vessel_edit(conn, vessel_id, body)
+        impact = _length_impact(conn, current, proposed)
+        reason = (body.impact_reason or "").strip()
+        if impact["blocking_count"] and (not reason or body.impact_token != impact["token"]):
+            raise HTTPException(409, detail={
+                "code": "measurement_review", "message": "Review the affected bookings and enter a reason before saving this measurement.",
+                "impact": impact,
+            })
+        v = db.update_vessel(conn, vessel_id, changes, commit=False)
+        change_id = None
+        if current.length_ft != proposed.length_ft:
+            change_id = db.record_vessel_change(conn, current, proposed, reason, impact)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    return {**vessel_json(v), "impact": impact, "change_id": change_id}
+
+
+@app.post("/api/vessels/{vessel_id}/check-change")
+def check_vessel_change(vessel_id: int, body: VesselPatch, conn=Depends(get_db)) -> dict:
+    """Preview a measurement change without saving any vessel or booking."""
+    before, after, _ = _vessel_edit(conn, vessel_id, body)
+    return {"vessel": vessel_json(after), "impact": _length_impact(conn, before, after)}
+
+
+@app.get("/api/vessels/{vessel_id}/changes")
+def list_vessel_changes(vessel_id: int, conn=Depends(get_db)) -> list[dict]:
     if db.vessel(conn, vessel_id) is None:
         raise HTTPException(404, f"no vessel with id {vessel_id}")
-    changes = {k: getattr(body, k) for k in body.model_fields_set}
-    if not changes:
-        raise HTTPException(422, "no changes given")
-    if "name" in changes:
-        if not changes["name"] or not changes["name"].strip():
-            raise HTTPException(422, "a vessel needs a name")
-        other = db.vessel_by_name(conn, changes["name"])
-        if other is not None and other.id != vessel_id:
-            raise HTTPException(409, f"a vessel named like {changes['name']!r} already exists")
-    v = db.update_vessel(conn, vessel_id, changes)
-    return vessel_json(v)  # type: ignore[arg-type]
+    return db.vessel_changes(conn, vessel_id)
 
 
 @app.get("/api/reservations")

@@ -21,7 +21,9 @@ class PostgresConnection:
 
     def execute(self, sql, params=()):
         # All statements are application-owned; values always remain parameters.
-        return self.raw.execute(sql.replace("?", "%s"), params)
+        # With no parameters, pass None so psycopg does not read a literal '%'
+        # (as in LIKE 'golden%') as a placeholder.
+        return self.raw.execute(sql.replace("?", "%s"), tuple(params) or None)
 
     def executemany(self, sql, rows):
         with self.raw.cursor() as cursor:
@@ -48,17 +50,23 @@ class PostgresConnection:
         return self.raw.info.transaction_status != TransactionStatus.IDLE
 
     def commit(self):
+        # Postgres answers COMMIT on a failed transaction with a quiet rollback;
+        # refuse instead, so a write that failed can never look committed.
+        if self.raw.info.transaction_status == TransactionStatus.INERROR:
+            raise RuntimeError("the transaction has failed; roll it back instead of committing")
         self.raw.commit()
 
     def rollback(self):
-        self.raw.rollback()
+        # A dropped connection has no transaction left to undo; do not raise over the real error.
+        if self.raw.info.transaction_status in (TransactionStatus.INTRANS, TransactionStatus.INERROR):
+            self.raw.rollback()
 
     def close(self):
         self.raw.close()
 
     def reset_sequences(self):
         # Imported IDs are explicit, so advance each identity before manual writes.
-        for table in ("berths", "vessels", "reservations", "annotations", "import_issues", "tours"):
+        for table in ("berths", "vessels", "reservations", "annotations", "import_issues", "tours", "vessel_changes"):
             self.raw.execute(
                 f"SELECT setval(pg_get_serial_sequence('{table}', 'id'), "
                 f"COALESCE(MAX(id), 1), MAX(id) IS NOT NULL) FROM {table}"

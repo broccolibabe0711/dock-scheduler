@@ -1,4 +1,4 @@
-"""The API: every write goes through the referee."""
+"""The API: booking decisions and reviewed changes to the facts behind them."""
 import os
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
@@ -216,3 +216,93 @@ def test_vercel_refuses_to_use_ephemeral_sqlite(monkeypatch, tmp_path):
     monkeypatch.setattr(api, "DB_PATH", tmp_path / "temporary.db")
     with pytest.raises(RuntimeError, match="DATABASE_URL"):
         api.ensure_data()
+
+
+def measured_stay(client, name="F/V Measurement", length=30, berth="North Pier Face"):
+    v = client.post("/api/vessels", json={"name": name, "length_ft": length}).json()
+    response = client.post("/api/reservations", json={"berth_id": berth_id(client, berth), "vessel_id": v["id"],
+                           "start": "2030-01-01", "end": "2030-01-02"})
+    assert response.status_code == 201, response.text
+    return v, response.json()["reservation"]
+
+
+@pytest.mark.parametrize("new_length,verdict", [(120, "conflict"), (None, "unknown")])
+def test_measurement_preview_does_not_save_and_blocking_edits_need_a_recorded_review(client, new_length, verdict):
+    v, stay = measured_stay(client)
+    url = f"/api/vessels/{v['id']}"
+    body = {"length_ft": new_length}
+    preview = client.post(url + "/check-change", json=body).json()["impact"]
+    assert preview["affected_count"] == 1 and preview["blocking_count"] == 1
+    assert preview["reservations"][0]["before"]["verdict"] == "ok"
+    assert preview["reservations"][0]["after"]["verdict"] == verdict
+    assert client.get("/api/vessels", params={"q": v["name"]}).json()[0]["length_ft"] == 30
+    for extra in ({}, {"impact_reason": "   ", "impact_token": preview["token"]}, {"impact_reason": "measured again"}):
+        refused = client.patch(url, json={**body, **extra})
+        assert refused.status_code == 409
+        assert refused.json()["detail"]["code"] == "measurement_review"
+    saved = client.patch(url, json={**body, "impact_reason": "Corrected from the vessel's current specification", "impact_token": preview["token"]})
+    assert saved.status_code == 200
+    assert saved.json()["length_ft"] == new_length
+    [review] = client.get(url + "/changes").json()
+    assert review["length_before"] == 30 and review["length_after"] == new_length
+    assert review["reason"] == "Corrected from the vessel's current specification"
+    assert review["impact"]["reservations"][0]["reservation"]["id"] == stay["id"]
+    assert review["impact"]["reservations"][0]["after"]["verdict"] == verdict
+
+
+def test_length_correction_reviews_neighbours_as_well_as_the_changed_vessels_stay(client):
+    a, own = measured_stay(client, "M/V First", 200, "North Pier West")
+    _, neighbour = measured_stay(client, "M/V Neighbour", 100, "North Pier West")
+    impact = client.post(f"/api/vessels/{a['id']}/check-change", json={"length_ft": 305}).json()["impact"]
+    assert impact["blocking_count"] == 2
+    assert {i["reservation"]["id"] for i in impact["reservations"]} == {own["id"], neighbour["id"]}
+    assert all(any(f["code"] == "capacity" for f in i["after"]["findings"]) for i in impact["reservations"])
+
+
+def test_an_acknowledgement_cannot_be_reused_after_the_affected_booking_changes(client):
+    v, stay = measured_stay(client)
+    url = f"/api/vessels/{v['id']}"
+    impact = client.post(url + "/check-change", json={"length_ft": 120}).json()["impact"]
+    client.patch(f"/api/reservations/{stay['id']}", json={"end": "2030-01-03"})
+    stale = client.patch(url, json={"length_ft": 120, "impact_reason": "Reviewed", "impact_token": impact["token"]})
+    assert stale.status_code == 409
+    assert stale.json()["detail"]["impact"]["token"] != impact["token"]
+    assert client.get("/api/vessels", params={"q": v["name"]}).json()[0]["length_ft"] == 30
+    assert client.get(url + "/changes").json() == []
+
+
+def test_cancelled_stays_do_not_block_measurement_corrections(client):
+    v, stay = measured_stay(client)
+    client.patch(f"/api/reservations/{stay['id']}", json={"status": "cancelled"})
+    out = client.patch(f"/api/vessels/{v['id']}", json={"length_ft": 120})
+    assert out.status_code == 200 and out.json()["impact"]["affected_count"] == 0
+
+
+def test_failure_to_record_a_measurement_review_rolls_back_the_measurement(client, monkeypatch):
+    v = client.post("/api/vessels", json={"name": "F/V Atomic change", "length_ft": 30}).json()
+    def fail(*_):
+        raise RuntimeError("review storage unavailable")
+    monkeypatch.setattr(db, "record_vessel_change", fail)
+    with pytest.raises(RuntimeError, match="review storage unavailable"):
+        client.patch(f"/api/vessels/{v['id']}", json={"length_ft": 40})
+    assert client.get("/api/vessels", params={"q": v["name"]}).json()[0]["length_ft"] == 30
+    assert client.get(f"/api/vessels/{v['id']}/changes").json() == []
+
+
+@pytest.mark.parametrize("field", ["name", "notes", "rafts_ok"])
+def test_required_vessel_fields_cannot_be_cleared_to_null(client, field):
+    vid = vessel_id(client, "golden compass")
+    assert client.patch(f"/api/vessels/{vid}", json={field: None}).status_code == 422
+
+
+def test_the_measurement_table_upgrade_keeps_existing_bookings(client):
+    _, stay = measured_stay(client)
+    conn = db.connect(api.DB_PATH)
+    db.begin_write(conn)
+    conn.execute("DROP TABLE vessel_changes")  # disposable fixture: simulate the prior schema
+    conn.commit()
+    conn.close()
+    api.ensure_data()
+    saved = client.get(f"/api/reservations/{stay['id']}").json()
+    assert saved["vessel"]["name"] == "F/V Measurement"
+    assert client.get(f"/api/vessels/{saved['vessel']['id']}/changes").json() == []

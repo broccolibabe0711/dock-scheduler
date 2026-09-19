@@ -15,7 +15,7 @@ these numbers are the same `dock/rules.py` functions that check every new bookin
 | Distinct vessels (grid and registries) | 575, 158 with a known length |
 | Vessel stays whose vessel has a known length | 33 of 1927 |
 | Berth-days over capacity | 0 |
-| Vessels assigned to a berth shorter than themselves | 9 |
+| Reservation records with a vessel longer than its berth | 9 |
 | Shared berth-days that cannot be verified (a length is missing) | 12 |
 | Stays overlapping a closure | 1 |
 | Issues the importer logged instead of guessing | 479 |

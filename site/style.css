@@ -41,7 +41,9 @@ a { color: var(--accent); }
 .tabs .harbor-tab[aria-selected="true"] { background: var(--accent); color: var(--accent-ink); }
 .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 8px 0 12px; }
 .hint { color: var(--muted); font-size: .85rem; }
-button, input, select { font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 6px 10px; }
+button, input, select, textarea { font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 6px 10px; }
+textarea { width: 100%; resize: vertical; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 button { cursor: pointer; }
 button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 button[disabled] { opacity: .5; cursor: not-allowed; }
@@ -49,6 +51,8 @@ label { display: flex; flex-direction: column; gap: 4px; font-size: .85rem; colo
 label > input, label > select { color: var(--ink); }
 .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 10px; }
 .row .wide { flex: 1 1 320px; }
+.row > * { min-width: 0; max-width: 100%; }
+input, select { max-width: 100%; }
 .actions { gap: 8px; }
 
 /* ---- grid view ---- */
@@ -99,8 +103,8 @@ label > input, label > select { color: var(--ink); }
 
 /* ---- harbor view ---- */
 .harbor-layout { display: grid; grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr); gap: 14px; }
-@media (max-width: 900px) { .harbor-layout { grid-template-columns: 1fr; } }
-.harbor { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); min-height: 320px; }
+@media (max-width: 900px) { .harbor-layout { grid-template-columns: minmax(0, 1fr); } }
+.harbor { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); min-height: 320px; min-width: 0; overflow-x: auto; }
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; font-size: .9rem; }
 .panel h3 { margin-top: 0; }
 .panel ul { padding-left: 18px; margin: 6px 0; }
@@ -123,6 +127,8 @@ table.data th { background: color-mix(in srgb, var(--line) 40%, var(--panel)); }
 .stat .n { font-size: 1.5rem; font-weight: 700; }
 .stat .l { color: var(--muted); font-size: .8rem; }
 .issues-wrap { max-height: 70vh; overflow: auto; }
+.table-scroll { max-width: 100%; overflow-x: auto; margin-bottom: 14px; }
+.table-scroll:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* ---- detail dialog (a native <dialog>: focus, Escape and the backdrop come for free) ---- */
 dialog.detail { border: 0; padding: 0; background: transparent; max-width: min(560px, 100vw - 32px); width: 100%; }
@@ -130,6 +136,21 @@ dialog.detail::backdrop { background: rgba(0, 0, 0, .45); }
 .detail-card { background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 10px; padding: 16px; max-height: 90vh; overflow: auto; }
 .detail-card dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 0 0 12px; }
 .detail-card dt { color: var(--muted); }
+.detail-card dd { margin: 0; overflow-wrap: anywhere; min-width: 0; }
+.detail-card form > label { margin: 12px 0; }
+.detail-card .row { margin-top: 12px; }
+.detail-card input, .detail-card select { max-width: 100%; min-width: 0; }
+.detail-card .row label { flex: 1 1 160px; min-width: 0; }
+.impact-items { max-height: 300px; overflow-y: auto; padding-left: 20px; }
+.impact-items li { margin-bottom: 14px; }
+.note-list { padding-left: 20px; }
+.note-list li { margin: 8px 0; }
+.provenance { font-size: .78rem; color: var(--muted); }
+.annotations { margin-top: 16px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; }
+summary { cursor: pointer; font-weight: 600; }
+#edit-result { margin: 10px 0; }
+.registry-table td:last-child { min-width: 160px; }
+@media(max-width: 560px) { .detail-card dl { grid-template-columns: 1fr; } .detail-card dt { margin-top: 6px; } input[type="date"] { width: 100%; } }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .foot { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 24px; color: var(--muted); font-size: .85rem; }
 .empty { color: var(--muted); padding: 16px; }

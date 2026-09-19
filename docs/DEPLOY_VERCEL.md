@@ -52,3 +52,16 @@ With `TEST_DATABASE_URL` present, every API workflow runs against both SQLite an
 PostgreSQL, including persistence and simultaneous conflicting writes. CI supplies
 an isolated PostgreSQL service automatically. PostgreSQL write transactions use a
 shared advisory lock, suitable for this small coordinator application.
+
+The measurement-review upgrade adds `vessel_changes` with `CREATE TABLE IF NOT EXISTS`.
+Startup adds this table to an existing ledger without replacing its bookings.
+Do not run the workbook import command as an upgrade: it intentionally replaces data.
+
+## If setup fails
+
+- A missing or unsupported `DATABASE_URL` is a configuration problem. Connect the intended PostgreSQL database to Production, then redeploy. Never paste credentials into source or a public issue.
+- If a build fails, inspect that deployment's build log. If a request fails after a successful build, inspect the function log and the database integration separately.
+- The first request against an empty database imports the workbook under a lock. Later starts keep the existing records.
+- A preview deployment needs its own database configuration before it can accept bookings. A production-only database integration does not automatically provide isolated preview data.
+
+Use `python scripts/verify_deployment.py --base-url https://dock-scheduler-henna.vercel.app` for read-only checks. Add `--write-smoke` to create, edit, read and cancel a clearly labelled test event; it never replaces the ledger.
