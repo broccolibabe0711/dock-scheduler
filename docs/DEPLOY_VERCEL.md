@@ -1,5 +1,10 @@
 # Deploy the operable app on Vercel
 
+Live production URL: <https://dock-scheduler-henna.vercel.app>.
+The connected Neon resource is `dock-scheduler-db` on the Free plan in US East.
+Only the Production environment is connected. Configure separate preview storage
+before using a preview deployment for bookings.
+
 The Vercel app runs the Python API and the existing front end together. Bookings
 are stored in PostgreSQL. The GitHub Pages site remains a separate read-only
 history snapshot.

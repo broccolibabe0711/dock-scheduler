@@ -1,5 +1,12 @@
 # Dock Scheduling System — Project Framework
 
+**Deployment update, 19 September 2026:** The requested operable website is at
+<https://dock-scheduler-henna.vercel.app>. Vercel runs FastAPI with persistent Neon
+PostgreSQL; local development keeps SQLite. The deployment work and verification
+are documented in `docs/DEPLOY_VERCEL.md` and decision 0008. The 124-test suite
+includes API workflows on both databases. The older Pages sections below describe
+the historical read-only demo, which remains available separately.
+
 **For:** Baron Zhang's take-home for Columbia Software Solutions
 **Written:** 18 September 2026 (before any application code exists)
 **Budget:** about 6 hours of Baron's own time, working with Claude Code as a pair

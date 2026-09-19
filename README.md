@@ -7,7 +7,11 @@ A reservation system for a marine research waterfront: berths of different lengt
 
 It also imports the facility's 23-year legacy schedule, records every ambiguity in it instead of guessing, and audits that history with the same rules that guard new bookings.
 
-**Read-only history:** https://broccolibabe0711.github.io/dock-scheduler/ · **Operable Vercel deployment:** [setup and verification](docs/DEPLOY_VERCEL.md) · **Plan and decisions:** [FRAMEWORK.md](FRAMEWORK.md) · **Audit:** [docs/AUDIT_REPORT.md](docs/AUDIT_REPORT.md)
+**Live app:** [dock-scheduler-henna.vercel.app](https://dock-scheduler-henna.vercel.app) · **Read-only history:** [GitHub Pages](https://broccolibabe0711.github.io/dock-scheduler/) · **Deployment guide:** [Vercel](docs/DEPLOY_VERCEL.md) · **Plan:** [FRAMEWORK.md](FRAMEWORK.md) · **Audit:** [docs/AUDIT_REPORT.md](docs/AUDIT_REPORT.md)
+
+The live app saves bookings in PostgreSQL. It is a shared synthetic demo without
+sign-in. Use **Book** to make a reservation, **Today** to view the current month,
+or **Sample history** to explore July 2017.
 
 Built as a take-home for Columbia Software Solutions.
 
