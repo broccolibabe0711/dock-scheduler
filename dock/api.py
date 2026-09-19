@@ -9,6 +9,7 @@ themselves, and the front end only renders the findings they return.
 """
 from __future__ import annotations
 
+import logging
 import os
 from contextlib import asynccontextmanager
 from datetime import date
@@ -17,7 +18,7 @@ from typing import Iterator, Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from . import db, rules
 from .models import Berth, CheckResult, DayLoad, DayRange, Finding, Reservation, ReservationKind, Vessel
@@ -26,6 +27,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DB_PATH = Path(os.environ.get("DOCK_DB", ROOT / "dock.db"))
 SAMPLE = ROOT / "data" / "Dock Schedule - Synthetic Sample.xlsx"
 SITE = ROOT / "site"
+log = logging.getLogger("dock")
 
 def ensure_data() -> None:
     """First run: import the sample so the app is never empty."""
@@ -34,8 +36,13 @@ def ensure_data() -> None:
         empty = conn.execute("SELECT COUNT(*) FROM berths").fetchone()[0] == 0
     finally:
         conn.close()
-    if empty and SAMPLE.exists():
-        db.import_workbook_into(DB_PATH, SAMPLE)
+    if not empty:
+        return
+    if not SAMPLE.exists():
+        log.warning("database %s is empty and no workbook found at %s; starting with no data", DB_PATH, SAMPLE)
+        return
+    data = db.import_workbook_into(DB_PATH, SAMPLE)
+    log.info("imported %s into %s: %s", SAMPLE.name, DB_PATH, data["totals"])
 
 
 @asynccontextmanager
@@ -107,6 +114,7 @@ def load_json(load: DayLoad) -> dict:
 
 # ---------------------------------------------------------------- request bodies
 class ReservationIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")  # a misspelt field is an error, not a silent no-op
     berth_id: int
     kind: Literal["vessel", "event", "closure"] = "vessel"
     vessel_id: int | None = None
@@ -120,6 +128,7 @@ class ReservationIn(BaseModel):
 
 
 class ReservationPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     berth_id: int | None = None
     start: date | None = None
     end: date | None = None
@@ -129,6 +138,7 @@ class ReservationPatch(BaseModel):
 
 
 class VesselIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     name: str
     length_ft: float | None = Field(default=None, gt=0, allow_inf_nan=False)
     type_prefix: str | None = None
@@ -139,6 +149,7 @@ class VesselIn(BaseModel):
 
 
 class VesselPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     name: str | None = None
     length_ft: float | None = Field(default=None, gt=0, allow_inf_nan=False)
     type_prefix: str | None = None
@@ -159,6 +170,8 @@ def _candidate(conn, body: ReservationIn) -> tuple[Reservation, Berth]:
         vessel = db.vessel(conn, body.vessel_id)
         if vessel is None:
             raise HTTPException(404, f"no vessel with id {body.vessel_id}")
+    elif body.vessel_id is not None:
+        raise HTTPException(422, f"a {body.kind} does not have a vessel; leave vessel_id out")
     try:
         candidate = Reservation(
             berth_id=body.berth_id, kind=ReservationKind(body.kind), days=DayRange(body.start, body.end),
@@ -213,6 +226,8 @@ def patch_vessel(vessel_id: int, body: VesselPatch, conn=Depends(get_db)) -> dic
     if db.vessel(conn, vessel_id) is None:
         raise HTTPException(404, f"no vessel with id {vessel_id}")
     changes = {k: getattr(body, k) for k in body.model_fields_set}
+    if not changes:
+        raise HTTPException(422, "no changes given")
     if "name" in changes:
         if not changes["name"] or not changes["name"].strip():
             raise HTTPException(422, "a vessel needs a name")
@@ -270,11 +285,17 @@ def create_reservation(body: ReservationIn, conn=Depends(get_db)) -> dict:
 
 @app.patch("/api/reservations/{reservation_id}")
 def patch_reservation(reservation_id: int, body: ReservationPatch, conn=Depends(get_db)) -> dict:
-    """Change dates, berth, status or notes. Cancelling never needs a check."""
+    """Change dates, berth, status or notes.
+
+    Only a change of berth, dates or status is judged; a note or an override
+    reason on its own is saved as it is. Cancelling never needs a check."""
     current = db.reservation(conn, reservation_id)
     if current is None:
         raise HTTPException(404, f"no reservation with id {reservation_id}")
     changes = body.model_dump(exclude_none=True)
+    if not changes:
+        raise HTTPException(422, "no changes given")
+    judged = any(k in changes for k in ("berth_id", "start", "end", "status"))
     try:
         days = DayRange(changes.get("start", current.days.start), changes.get("end", current.days.end))
         updated = Reservation(
@@ -288,6 +309,9 @@ def patch_reservation(reservation_id: int, body: ReservationPatch, conn=Depends(
     berth = db.berth(conn, updated.berth_id)
     if berth is None:
         raise HTTPException(404, f"no berth with id {updated.berth_id}")
+    if not judged:
+        saved = db.update_reservation(conn, updated)
+        return {"reservation": reservation_json(saved), "check": None}
     conn.execute("BEGIN IMMEDIATE")
     try:
         result = _judge(conn, updated, berth)

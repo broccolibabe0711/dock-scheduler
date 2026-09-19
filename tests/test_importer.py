@@ -71,7 +71,7 @@ def test_the_explicit_day_one_row_wins_and_the_disagreement_is_logged(tiny):
 
 def test_a_tour_row_without_a_date_is_logged_not_dropped(tiny):
     [issue] = [i for i in tiny.issues if i.kind == "unreadable_tour_row"]
-    assert "Requires shore power" in issue.message and len(tiny.tours) == 2
+    assert "Requires shore power" in issue.message and len(tiny.tours) == 3
 
 
 def test_group_rows_are_berths_without_a_length(tiny):
@@ -83,7 +83,7 @@ def test_group_rows_are_berths_without_a_length(tiny):
 
 def test_duplicate_rows_and_stray_text_are_logged_not_guessed(tiny):
     kinds = tiny.issue_counts()
-    assert kinds["duplicate_berth_row"] == 1 and kinds["unlabelled_row_text"] == 1
+    assert kinds["duplicate_berth_row"] == 1 and kinds["unlabelled_row_text"] == 2
     assert by_name(tiny, "M/V Second Boat")  # the second row still imports
 
 
@@ -91,8 +91,46 @@ def test_tours_and_summary_are_read(tiny):
     assert [(t.day, t.people, t.approximate, t.organisation) for t in tiny.tours] == [
         (date(2018, 4, 29), 6, True, "Regional Fisheries Agency"),
         (date(2018, 5, 2), 4, False, "Harbor Institute"),
+        (date(2018, 5, 5), None, False, "Regional Fisheries Agency"),  # "10-12" is not a number
     ]
+    assert any(i.kind == "tour_headcount_unreadable" for i in tiny.issues)
     assert tiny.usage_summary[("North Pier West", 2009)] == 4
+
+
+def test_a_block_without_day_numbers_is_imported_tagged_and_flagged(tiny):
+    [guessed] = by_name(tiny, "R/V Guessed Day")
+    assert guessed.days.start == date(2004, 5, 3) and guessed.legacy_ref.endswith(":single:day1_assumed")
+    [issue] = [i for i in tiny.issues if i.kind == "day_row_missing"]
+    assert issue.severity == "error" and "ASSUMED" in issue.message
+
+
+def test_headers_the_importer_cannot_read_and_unread_sheets_are_errors_not_silence(tiny):
+    assert by_name(tiny, "R/V September Boat") == []
+    [bad] = [i for i in tiny.issues if i.kind == "unparsed_month_header"]
+    assert "Sept 2004" in bad.message and bad.severity == "error"
+    [unread] = [i for i in tiny.issues if i.kind == "unread_sheet"]
+    assert unread.sheet == "Notes"
+    assert any(i.kind == "unlabelled_row_text" and "R/V Above Header" in i.message for i in tiny.issues)
+
+
+def test_bare_numbers_and_zero_lengths_are_logged(tiny):
+    assert any(i.kind == "bare_number" and "1400" in i.message for i in tiny.issues)
+    marsh = next(b for b in tiny.berths if b.name == "Marsh Landing")
+    assert marsh.length_ft is None
+    assert any(i.kind == "invalid_length" and "Marsh Landing" in i.message for i in tiny.issues)
+    assert any(i.kind == "registry_length_conflict" and "R/V Zero Boat" in i.message for i in tiny.issues)
+
+
+def test_a_berth_labelled_with_two_lengths_uses_the_latest_and_logs_it(tiny):
+    channel = next(b for b in tiny.berths if b.name == "Inner Channel")
+    assert channel.length_ft == 60  # 2014 is the latest sheet that labels it
+    [issue] = [i for i in tiny.issues if i.kind == "berth_length_conflict"]
+    assert "55'" in issue.message and "60'" in issue.message
+
+
+def test_the_same_month_twice_on_one_sheet_is_read_once(tiny):
+    assert by_name(tiny, "R/V Dup") == []
+    assert any(i.kind == "duplicate_block" and "NOVEMBER 2010" in i.message for i in tiny.issues)
 
 
 @pytest.mark.slow

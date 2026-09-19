@@ -85,6 +85,7 @@ def build(path: str | Path) -> Path:
     ws.cell(1, 1, "Harborview Marine Research Center")
     ws.cell(2, 1, "2009 Pier & Dock Schedule (synthetic sample data)")
     ws.cell(3, 1, "Contact: Dock Coordinator")
+    ws.cell(4, 3, "R/V Above Header")  # a name in the blank row above the first block
     r = _era_b_block(ws, 5, "JANUARY 2009", 31)
     ws.cell(r, 3, "R/V GOLDEN COMPASS")  # Jan 2-5 merged
     ws.merge_cells(start_row=r, start_column=3, end_row=r, end_column=6)
@@ -111,6 +112,22 @@ def build(path: str | Path) -> Path:
     for j, name in enumerate(BERTHS):
         ws.cell(14 + j, 1, name)
     ws.cell(17, 6, "Tug Blue Fathom")  # column F = day 3 by the explicit row (day 4 by the header)
+    r = _era_b_block(ws, 24, "NOVEMBER 2010", 30)  # the same month again: read once, logged
+    ws.cell(r, 5, "R/V Dup")
+
+    # ---- a block with no day numbers at all, and a header the importer does not read
+    ws = wb.create_sheet("2004")
+    ws.cell(1, 1, "MAY 2004")
+    for j, name in enumerate(BERTHS):
+        ws.cell(3 + j, 1, name)
+    ws.cell(3, 4, "R/V Guessed Day")  # column D: day 3 only if day 1 is assumed at B
+    ws.cell(12, 1, "Sept 2004")  # looks like a header, is not one the importer reads
+    for j, name in enumerate(BERTHS):
+        ws.cell(14 + j, 1, name)
+    ws.cell(14, 5, "R/V September Boat")
+
+    ws = wb.create_sheet("Notes")  # a sheet that is none of the kinds the importer knows
+    ws.cell(1, 1, "R/V Forgotten in a notes tab")
 
     # ---- era C: 2014 with group rows, an event, a duplicate berth row
     ws = wb.create_sheet("2014")
@@ -124,6 +141,10 @@ def build(path: str | Path) -> Path:
     ws.merge_cells(start_row=r + 6, start_column=3, end_row=r + 6, end_column=5)
     ws.cell(r + 8, 1, "South Float East - 90'")  # a second row for the same berth
     ws.cell(r + 8, 6, "M/V Second Boat")
+    ws.cell(r + 3, 1, "Inner Channel - 60'")  # the same berth, a different length than the other years
+    ws.cell(r + 9, 1, "Marsh Landing - 0'")  # a length that cannot be right
+    ws.cell(r + 9, 10, "F/V On Marsh")
+    ws.cell(r + 1, 20, 1400)  # a bare number in a berth row
 
     # ---- registry with lengths for two of the grid vessels
     ws = wb.create_sheet("Science")
@@ -131,6 +152,7 @@ def build(path: str | Path) -> Path:
     ws.append(["R/V Golden Compass 120'", "Harbor Institute", "Capt. Dana Everly", "Cell: 555-0102"])
     ws.append(["", "Cell: 555-0103"])
     ws.append(["F/V Swift Dory 32'", "", "", "", "", "", "Will raft alongside if needed"])
+    ws.append(["R/V Zero Boat 0'"])
     ws = wb.create_sheet("Yachts")
     ws.append(["M/Y Long Dory 52'", "LOA: 65', Draft: 4'"])
 
@@ -145,6 +167,7 @@ def build(path: str | Path) -> Path:
     ws.append([43219, 1530, "Avery", "Finley Ingram (Regional Fisheries Agency)", "~6", "R/V Silver Tern", "Confirmed"])
     ws.append([43222, "tbd", "Jesse", "Morgan Ransom (Harbor Institute)", 4, "R/V Blue Heron", ""])
     ws.append(["Requires shore power"])  # a stray fragment with no date
+    ws.append([43225, 1100, "Rowan", "Avery Lowell (Regional Fisheries Agency)", "10-12", "R/V Blue Heron", ""])
 
     path = Path(path)
     wb.save(path)

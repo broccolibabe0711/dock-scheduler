@@ -90,7 +90,7 @@ def write_snapshot(workbook: str | Path, out_dir: str | Path, generated_on: date
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     for name, data in files.items():
-        (out / name).write_text(json.dumps(data, default=str, separators=(",", ":")))
+        (out / name).write_text(json.dumps(data, separators=(",", ":")))  # no default=str: a stray object must fail here
     return out
 
 

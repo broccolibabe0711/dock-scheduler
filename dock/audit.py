@@ -110,6 +110,10 @@ def build_report(result: ImportResult) -> tuple[AuditReport, dict]:
             for c, r in report.closure_conflicts
         ],
         "unverifiable_days": len(report.unverifiable),
+        "inactive": [{"reservation": _occupant(r, next(b for b in result.berths if b.id == r.berth_id)), "message": f.message}
+                     for r, f in report.inactive],
+        "orphaned": [{"id": r.id, "name": r.display_name, "berth_id": r.berth_id, "start": r.days.start.isoformat(), "end": r.days.end.isoformat()}
+                     for r in report.orphaned],
         "summary_years": summary_years,
         "summary_comparison": summary_rows,
         "issues_by_kind": result.issue_counts(),
@@ -134,7 +138,7 @@ def render_markdown(data: dict) -> str:
         "",
         "| What | Value |",
         "|---|---|",
-        f"| Years covered | {data['years'][0]}–{data['years'][-1]} |",
+        f"| Years covered | {f"{data['years'][0]}–{data['years'][-1]}" if data['years'] else '(no reservations)'} |",
         f"| Cell runs read from the grids | {t['raw_stays']} |",
         f"| Reservations after stitching month-split stays | {t['reservations']} ({data['stitched']} stitched) |",
         f"| Of which vessel / event / closure | {data['reservations_by_kind'].get('vessel', 0)} / {data['reservations_by_kind'].get('event', 0)} / {data['reservations_by_kind'].get('closure', 0)} |",
@@ -177,6 +181,12 @@ def render_markdown(data: dict) -> str:
             lines.append(f"| {r['name']} | {m['berth']} | {r['start']}..{r['end']} | {m['message']} |")
     else:
         lines.append("None among the stays whose vessel length is known.")
+    if data["inactive"] or data["orphaned"]:
+        lines += ["", "## Stays on berths out of service or unknown", ""]
+        for x in data["inactive"]:
+            lines.append(f"- {x['reservation']['name']} {x['reservation']['start']}..{x['reservation']['end']}: {x['message']}")
+        for x in data["orphaned"]:
+            lines.append(f"- {x['name']} {x['start']}..{x['end']}: berth id {x['berth_id']} is unknown")
     lines += ["", "## Stays overlapping a closure", ""]
     if data["closure_conflicts"]:
         lines += ["| Closure | Berth | Closure days | Displaced | Their days |", "|---|---|---|---|---|"]

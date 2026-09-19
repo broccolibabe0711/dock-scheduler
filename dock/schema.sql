@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS berths (
 
 CREATE TABLE IF NOT EXISTS vessels (
     id          INTEGER PRIMARY KEY,
-    name        TEXT    NOT NULL,
+    name        TEXT    NOT NULL CHECK (length(trim(name)) > 0),
     name_key    TEXT    NOT NULL UNIQUE,      -- case-folded identity, see models.name_key
     type_prefix TEXT,
     length_ft   REAL    CHECK (length_ft IS NULL OR length_ft > 0),

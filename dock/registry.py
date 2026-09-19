@@ -177,15 +177,14 @@ def registry_vessels(entries: Iterable[RegistryEntry]) -> tuple[list[Vessel], li
         operators = [o for e in group for o in e.operators]
         notes = [n for e in group for n in e.notes]
         flags = set().union(*(e.flags for e in group))
-        vessels.append(
-            Vessel(
-                name=group[0].name,
-                length_ft=length,
-                type_prefix=group[0].type_prefix,
-                draft_ft=next((e.draft_ft for e in group if e.draft_ft is not None), None),
-                operator=" / ".join(dict.fromkeys(operators)) or None,
-                rafts_ok="rafts_ok" in flags,
-                notes="; ".join(dict.fromkeys(notes)),
-            )
-        )
+        draft = next((e.draft_ft for e in group if e.draft_ft is not None), None)
+        facts = dict(name=group[0].name, type_prefix=group[0].type_prefix,
+                     operator=" / ".join(dict.fromkeys(operators)) or None,
+                     rafts_ok="rafts_ok" in flags, notes="; ".join(dict.fromkeys(notes)))
+        try:
+            vessels.append(Vessel(length_ft=length, draft_ft=draft, **facts))
+        except ValueError as err:
+            where = "; ".join(f"{e.sheet} row {e.row} ({e.raw_name})" for e in group)
+            issues.append(f"{group[0].name}: {err}; length and draft left unknown. {where}")
+            vessels.append(Vessel(length_ft=None, draft_ft=None, **facts))
     return vessels, issues

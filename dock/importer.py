@@ -27,10 +27,11 @@ from openpyxl.utils import get_column_letter
 
 from .classify import CellKind, classify_cell
 from .models import Berth, CapacityMode, DayRange, Reservation, ReservationKind, Vessel, name_key
-from .registry import read_registry, registry_vessels
+from .registry import REGISTRY_SHEETS, read_registry, registry_vessels
 
 MONTHS = [m.lower() for m in calendar.month_name[1:]]
 MONTH_RE = re.compile(r"^\s*(" + "|".join(MONTHS) + r")\b\s*(\d{4})?\s*$", re.I)
+LOOSE_MONTH_RE = re.compile(r"^\s*[A-Za-z]{3,9}\.?\s*\d{4}\s*$")  # "Sept 2020": looks like a header, is not one we read
 WEEKDAY_RE = re.compile(r"^(M|T|W|TR|TH|F|S|SU|SA|MO|TU|WE|FR)$")
 GROUP_RE = re.compile(r"^(North Finger Piers|Small craft slips)", re.I)
 BERTH_LABEL_RE = re.compile(r"^(.*?)\s*-\s*(\d+(?:\.\d+)?)\s*'\s*$")
@@ -110,6 +111,7 @@ class ImportResult:
     raw_stays: list[RawStay] = field(default_factory=list)
     stats: dict[str, Any] = field(default_factory=dict)
     usage_summary: dict[tuple[str, int], int] = field(default_factory=dict)  # from the 8YR sheet
+    berth_labels: dict[str, set[int]] = field(default_factory=dict)  # every berth row label -> years it appears in
 
     def issue(self, kind: str, severity: str, sheet: str, cell: str, message: str) -> None:
         self.issues.append(ImportIssue(kind, severity, sheet, cell, message))
@@ -225,8 +227,10 @@ def _day_run(grid: _Grid, r: int) -> _DayRow | None:
                 else:
                     break
             length = last - first + 1
-            if best is None or length > best.length:
-                best = _DayRow(r, start - (first - 1), first, last, length)
+            day1_col = start - (first - 1)
+            plausible = day1_col >= 2 and last <= 31  # a run of years is not a run of days
+            if plausible and (best is None or length > best.length):
+                best = _DayRow(r, day1_col, first, last, length)
         else:
             c += 1
     return best if best is not None and best.length >= 3 else None
@@ -284,6 +288,7 @@ class _Block:
     header_days: int  # how many days the header lists
     cal_days: int  # how many the calendar has; the calendar wins
     header_rows: list[int]
+    day1_assumed: bool = False  # no day-number row was found; the column is the era's usual one
 
     @property
     def last_col(self) -> int:
@@ -296,10 +301,32 @@ def _read_year_sheet(grid: _Grid, sheet_year: int, result: ImportResult) -> None
     stats = {"blocks": [], "candidates": 0, "records": 0, "sources": {}, "outside": 0}
     result.stats[sheet] = stats
     header_rows_all = [r for r in range(1, grid.max_row + 1) if MONTH_RE.match(grid.text(r, 1))]
+    boundaries = sorted(set(header_rows_all) | {
+        r for r in range(1, grid.max_row + 1)
+        if LOOSE_MONTH_RE.match(grid.text(r, 1)) and not MONTH_RE.match(grid.text(r, 1))
+    })
+    for r in boundaries:
+        if r not in header_rows_all:
+            result.issue("unparsed_month_header", "error", sheet, grid.ref(r, 1),
+                         f"'{grid.text(r, 1)}' looks like a month header but is not one this importer reads; "
+                         f"the rows under it are not imported")
+    if not header_rows_all:
+        result.issue("sheet_without_blocks", "error", sheet, "A1", "no month header found on this sheet; nothing imported from it")
+        return
+    # text above the first header (title rows) can hide vessel names; log it like any unlabelled row
+    for r in range(1, header_rows_all[0]):
+        for c in range(2, grid.max_col + 1):
+            v = grid.value(r, c)
+            t = _text(v)
+            if v is None or _is_number(v) or _is_formula(v) or not t or WEEKDAY_RE.match(t):
+                continue
+            result.issue("unlabelled_row_text", "info", sheet, grid.ref(r, c), f"'{t}' above the first month header; not imported")
 
     for k, h in enumerate(header_rows_all):
-        stop = header_rows_all[k + 1] if k + 1 < len(header_rows_all) else grid.max_row + 1
-        lower_bound = header_rows_all[k - 1] + 1 if k > 0 else 1
+        later = [b for b in boundaries if b > h]
+        stop = later[0] if later else grid.max_row + 1
+        earlier = [b for b in boundaries if b < h]
+        lower_bound = earlier[-1] + 1 if earlier else 1
         label = grid.text(h, 1)
         m = MONTH_RE.match(label)
         assert m is not None
@@ -313,15 +340,20 @@ def _read_year_sheet(grid: _Grid, sheet_year: int, result: ImportResult) -> None
         cal_days = _days_in_month(block_year, block_month)
 
         day_row = _find_day_row(grid, h, lower_bound, result)
+        assumed = False
         if day_row is not None:
             day1_col, header_days, day_row_index = day_row.day1_col, day_row.last, day_row.row
             if day_row.first != 1:
                 result.issue("day_row_not_from_1", "info", sheet, grid.ref(day_row.row, 1),
                              f"block '{label}' numbers its days {day_row.first}..{day_row.last}; day 1 placed at column {get_column_letter(day1_col)}")
         else:
+            # no row of day numbers at all: the era's usual column is used, every stay from
+            # this block says so in its legacy_ref, and the block is flagged as an error
+            assumed = True
             day1_col, header_days, day_row_index = (3 if m.group(2) is None else 2), cal_days, None
-            result.issue("day_row_missing", "warning", sheet, grid.ref(h, 1),
-                         f"block '{label}' has no row of day numbers; day 1 assumed at column {get_column_letter(day1_col)}")
+            result.issue("day_row_missing", "error", sheet, grid.ref(h, 1),
+                         f"block '{label}' has no row of day numbers; day 1 ASSUMED at column {get_column_letter(day1_col)}; "
+                         f"its stays are tagged day1_assumed and their dates need checking")
         if header_days != cal_days:
             result.issue("header_days_mismatch", "warning", sheet, grid.ref(h, 1),
                          f"block '{label}' lists {header_days} days but the month has {cal_days}; the calendar wins")
@@ -336,7 +368,7 @@ def _read_year_sheet(grid: _Grid, sheet_year: int, result: ImportResult) -> None
             ) >= 5
             if r == h or r == day_row_index or is_weekday_row:
                 header_rows.append(r)
-        block = _Block(sheet, label, block_year, block_month, day1_col, header_days, cal_days, header_rows)
+        block = _Block(sheet, label, block_year, block_month, day1_col, header_days, cal_days, header_rows, assumed)
         for r in header_rows:
             for c in range(2, grid.max_col + 1):
                 v = grid.value(r, c)
@@ -362,6 +394,7 @@ def _read_year_sheet(grid: _Grid, sheet_year: int, result: ImportResult) -> None
                                  f"'{t}' in a row with no berth label under block '{label}'; not imported")
                 continue
             seen_labels.setdefault(a, []).append(r)
+            result.berth_labels.setdefault(a, set()).add(block_year)
             berth_name, _ = _parse_berth_label(a)
             if GROUP_RE.match(a):
                 if a.lower().startswith("north finger piers") or not group_label:
@@ -382,11 +415,11 @@ def _read_berth_row(grid: _Grid, r: int, berth_label: str, block: _Block, stats:
     c = 2
     while c <= grid.max_col:
         v = grid.value(r, c)
-        if v is None or _is_formula(v) or not _text(v):
-            c += 1
-            continue
         if _is_number(v):
             result.issue("bare_number", "info", sheet, grid.ref(r, c), f"number {v} in a berth row; skipped")
+            c += 1
+            continue
+        if v is None or _is_formula(v) or not _text(v):
             c += 1
             continue
         text = _text(v)
@@ -431,7 +464,8 @@ def _read_berth_row(grid: _Grid, r: int, berth_label: str, block: _Block, stats:
                          f"'{text}' is on day {start_day}, which the header of '{block.label}' does not list but the calendar has; imported")
         end_day = min(end_col - block.day1_col + 1, block.cal_days)
         result.raw_stays.append(RawStay(sheet, block.label, block.year, block.month, berth_label, r, c,
-                                        start_day, end_day, block.header_days, source, text))
+                                        start_day, end_day, block.header_days,
+                                        source + (":day1_assumed" if block.day1_assumed else ""), text))
         stats["records"] += 1
         stats["sources"][source] = stats["sources"].get(source, 0) + 1
         c = next_c
@@ -486,6 +520,9 @@ def _read_usage_summary(wb, result: ImportResult) -> None:
     if "8YR Dock Summary" not in wb.sheetnames:
         return
     rows = list(wb["8YR Dock Summary"].iter_rows(values_only=True))
+    if not rows:
+        result.issue("empty_sheet", "warning", "8YR Dock Summary", "A1", "the summary sheet is empty")
+        return
     years = [int(y) for y in rows[0][1:] if _is_int(y)]
     for row in rows[1:]:
         name = _text(row[0])
@@ -515,11 +552,20 @@ def _read_tours(wb, result: ImportResult) -> None:
         guest_text = _text(guest)
         m = re.match(r"^(.*?)\s*\(([^)]*)\)\s*$", guest_text)
         people_text = _text(people) if not _is_number(people) else str(int(people))
-        digits = re.sub(r"[^0-9]", "", people_text)
+        count = re.fullmatch(r"~?(\d+)", people_text)  # "10-12" or "2 adults + 3 kids" stay text, not a number
+        if people_text and count is None:
+            result.issue("tour_headcount_unreadable", "info", "Tours", f"E{row_index}",
+                         f"headcount '{people_text}' is not a plain number; kept as text")
+        if isinstance(raw_time, datetime):
+            time_raw = raw_time.strftime("%H%M")
+        elif hasattr(raw_time, "strftime"):
+            time_raw = raw_time.strftime("%H%M")  # a datetime.time cell
+        else:
+            time_raw = _text(raw_time) if not _is_number(raw_time) else str(int(raw_time))
         result.tours.append(Tour(
-            day=day, time_raw=_text(raw_time) if not _is_number(raw_time) else str(int(raw_time)),
+            day=day, time_raw=time_raw,
             guide=_text(guide), guest=m.group(1) if m else guest_text,
-            organisation=m.group(2) if m else "", people=int(digits) if digits else None,
+            organisation=m.group(2) if m else "", people=int(count.group(1)) if count else None,
             approximate=people_text.startswith("~"), vessel_name=_text(vessel), notes=_text(notes),
         ))
 
@@ -541,29 +587,31 @@ def import_workbook(path: str | Path) -> ImportResult:
 
     # 2. the grids
     year_sheets = sorted(n for n in wb.sheetnames if YEAR_SHEET_RE.match(n))
+    known = set(year_sheets) | set(REGISTRY_SHEETS) | {"8YR Dock Summary", "Tours"}
+    for name in wb.sheetnames:
+        if name not in known:
+            result.issue("unread_sheet", "warning", name, "", f"sheet '{name}' is not a year, registry, summary or tours sheet; not read")
     for name in year_sheets:
         _read_year_sheet(_Grid(wb[name]), int(name), result)
 
     # 3. skip month blocks that appear twice (a sheet that starts with the previous December)
-    seen_blocks: dict[tuple[int, int], str] = {}
+    seen_blocks: dict[tuple[int, int], tuple[str, str]] = {}  # (year, month) -> (sheet, block label) read first
     kept: list[RawStay] = []
     skipped_blocks: set[tuple[str, str]] = set()
     for stay in result.raw_stays:
         key = (stay.block_year, stay.block_month)
-        owner = seen_blocks.setdefault(key, stay.sheet)
-        if owner != stay.sheet:
+        owner = seen_blocks.setdefault(key, (stay.sheet, stay.block))
+        if owner != (stay.sheet, stay.block):
             skipped_blocks.add((stay.sheet, stay.block))
             continue
         kept.append(stay)
     for sheet, block in sorted(skipped_blocks):
         n = sum(1 for s in result.raw_stays if s.sheet == sheet and s.block == block)
-        result.issue("duplicate_block", "warning", sheet, "", f"block '{block}' repeats a month already read from another sheet; its {n} cell(s) were not imported")
+        result.issue("duplicate_block", "warning", sheet, "", f"block '{block}' repeats a month already read from another block; its {n} cell(s) were not imported")
 
-    # 4. berths, in the order the grids introduce them
-    first_year: dict[str, int] = {}
-    for stay in kept:
-        first_year.setdefault(stay.berth_label, stay.block_year)
-        first_year[stay.berth_label] = min(first_year[stay.berth_label], stay.block_year)
+    # 4. berths: every row label the grids carry, whether or not it ever held a stay
+    first_year: dict[str, int] = {label: min(years) for label, years in result.berth_labels.items()}
+    last_year: dict[str, int] = {label: max(years) for label, years in result.berth_labels.items()}
     def berth_order(item: tuple[str, int]) -> tuple:
         label, year = item
         name = _parse_berth_label(label)[0]
@@ -571,15 +619,30 @@ def import_workbook(path: str | Path) -> ImportResult:
             return (0, CANONICAL_BERTHS.index(name), label)
         return (1, year, label)  # group rows after the six pier faces, oldest first
 
-    berths: dict[str, Berth] = {}
-    for i, (label, year) in enumerate(sorted(first_year.items(), key=berth_order), start=1):
-        b = _berth_for_label(label, year)
-        berths[label] = Berth(b.name, b.length_ft, b.capacity_mode, b.clearance_ft, b.active_from, b.active_to, id=i)
-    # the same berth name may carry two labels over the years; map by name
+    # the same berth name may carry two labels over the years ("Inner Channel - 55'" and
+    # "Inner Channel - 60'"); the label seen in the latest year gives the length, and the
+    # disagreement is logged rather than settled by sort order
+    by_name: dict[str, list[tuple[str, int]]] = {}
+    for label, year in sorted(first_year.items(), key=berth_order):
+        by_name.setdefault(_parse_berth_label(label)[0], []).append((label, year))
+    result.berths = []
     berth_by_name: dict[str, Berth] = {}
-    for label, b in berths.items():
-        berth_by_name.setdefault(b.name, b)
-    result.berths = list(berth_by_name.values())
+    for i, (name, labels) in enumerate(by_name.items(), start=1):
+        measured = [(lab, yr) for lab, yr in labels if _parse_berth_label(lab)[1] is not None]
+        chosen_label, chosen_year = max(measured or labels, key=lambda lv: last_year[lv[0]])
+        lengths = {_parse_berth_label(lab)[1] for lab, _ in labels}
+        if len(lengths) > 1:
+            result.issue("berth_length_conflict", "warning", ", ".join(sorted({str(yr) for _, yr in labels})), "",
+                         f"'{name}' is labelled with different lengths over the years ({', '.join(lab for lab, _ in labels)}); "
+                         f"using '{chosen_label}'")
+        try:
+            b = _berth_for_label(chosen_label, min(yr for _, yr in labels))
+        except ValueError as err:
+            result.issue("invalid_length", "warning", str(chosen_year), "", f"'{chosen_label}': {err}; length left unknown")
+            b = _berth_for_label(re.sub(r"\s*-\s*\d+(?:\.\d+)?\s*'\s*$", "", chosen_label), min(yr for _, yr in labels))
+        berth = Berth(b.name, b.length_ft, b.capacity_mode, b.clearance_ft, b.active_from, b.active_to, id=i)
+        result.berths.append(berth)
+        berth_by_name[name] = berth
 
     # 5. classify every stay
     vessels: dict[str, Vessel] = {}

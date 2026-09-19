@@ -149,3 +149,22 @@ def test_a_post_with_an_id_cannot_slip_past_the_referee(client):
                                                    "start": "2026-10-10", "end": "2026-10-11"}).json()["reservation"]
     ev = {"berth_id": face, "kind": "event", "title": "Donor reception", "start": "2026-10-10", "end": "2026-10-10", "id": first["id"]}
     assert client.post("/api/reservations", json=ev).status_code == 422
+
+
+def test_unknown_fields_and_empty_edits_are_refused(client):
+    face = berth_id(client, "North Pier Face")
+    vid = vessel_id(client, "golden compass")
+    body = {"berth_id": face, "vessel_id": vid, "start": "2026-07-01", "end": "2026-07-02", "bogus": 1}
+    assert client.post("/api/check", json=body).status_code == 422
+    assert client.patch(f"/api/vessels/{vid}", json={}).status_code == 422
+    assert client.patch(f"/api/vessels/{vid}", json={"lenght_ft": 55}).status_code == 422
+    ev = {"berth_id": face, "kind": "event", "title": "Regatta", "start": "2026-07-01", "end": "2026-07-01", "vessel_id": vid}
+    assert client.post("/api/check", json=ev).status_code == 422
+
+
+def test_a_note_can_be_added_to_a_stay_the_referee_cannot_judge(client):
+    imported = client.get("/api/reservations", params={"start": "2009-01-01", "end": "2009-01-31"}).json()
+    unknown = next(r for r in imported if r["vessel"] and r["vessel"]["length_ft"] is None)  # M/V Northern Harbor
+    out = client.patch(f"/api/reservations/{unknown['id']}", json={"notes": "checked by phone"})
+    assert out.status_code == 200 and out.json()["check"] is None
+    assert out.json()["reservation"]["notes"] == "checked by phone"
