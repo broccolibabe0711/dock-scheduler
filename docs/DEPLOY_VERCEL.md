@@ -7,7 +7,11 @@ before using a preview deployment for bookings.
 
 The Vercel app runs the Python API and the existing front end together. Bookings
 are stored in PostgreSQL. The GitHub Pages site remains a separate read-only
-history snapshot.
+history snapshot. Keep `site/data` in the deployment package: Audit reads its fixed
+historical evidence there, while Grid and Harbor use the live API. The sample JSON
+is already public on Pages and in GitHub. A successful build does not prove the
+runtime includes these files; `scripts/verify_deployment.py` checks the live audit
+asset as part of release verification.
 
 1. Import this GitHub repository into Vercel. Select the repository root and the
    **FastAPI** framework. No front-end build command or output directory is needed.
