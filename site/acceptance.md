@@ -51,7 +51,7 @@ Optional live write check adds one clearly labelled event, verifies it, and canc
 
 | ID | Do this | Passing result |
 |---|---|---|
-| S01 | Open the root URL in a fresh tab. Then open a link ending in `#grid`. | Root opens Harbor; the explicit Grid link opens Grid. The badge says Live on Vercel. |
+| S01 | Open the root URL in a fresh tab. Then open a link ending in `#grid`. | Root opens Schedule in Harbor mode; the explicit Grid link opens Grid mode. The badge says Live · bookings saved. |
 | S02 | Press Fit example · 2010. Inspect R/V Clear Tern on 29 July 2010. | A 120 ft vessel exceeds the 75 ft North Pier Face by 45 ft; the drawing and written finding agree. |
 | S03 | Press Sample history. | The date is 12 July 2017; Utility work and OSV Amber Reef overlap on South Float East, with a visible problem. |
 | S04 | Search the registry for Clear Tern and open the source workbook link. | The intended vessel and dimensions are readable, the source opens, and clearing the search restores the list. |
@@ -158,3 +158,20 @@ Keyboard access, focus, reflow, contrast and understandable input errors are gro
 - Auth, depth, time-of-day and full change-history limitations are described honestly. The synthetic demo is not presented as ready for a real harbor's operations.
 
 **Result log template:** Case ID · build/version · browser/device · expected · observed · pass/fail · issue/evidence · retest result.
+
+## 10. Audit filters and linked layouts
+
+| ID | Do this | Passing result |
+|---|---|---|
+| A01 | In Audit choose South Float East, Closure overlap, and 15 July 2017 in both date fields; search Amber. | Exactly one finding, with Utility work and OSV Amber Reef. A closure’s final occupied day is included. |
+| A02 | Change the dates to 16 July 2017. | No closure overlap; the empty state explains how to widen or clear filters. |
+| A03 | Enter From later than To. | An error appears; the last valid results and their applied scope remain visible. |
+| A04 | Select Shared capacity unknown with the other filters clear. | Twelve historical berth-day findings. Fit unknown is a separate category. |
+| A05 | Set a useful filter combination, check Remember my filters, reload, then uncheck it and reload again. | The first reload restores the combination; the second starts with all findings. Tab switching within a session retains the current selection. |
+| A06 | Use Next 25, then change a filter or press Clear filters. | Pagination stays within the matching results and returns to the first page after filter changes. |
+| A07 | Open a filtered finding in Grid + Harbor. | Side by side opens at a day inside the selected overlap, and both views share that day. The audit is historical; the opened ledger is current. |
+| A08 | In Side by side choose a grid day number, then change the Harbor date to another month. | Both the selected grid day/month and Harbor date follow each change. |
+| A09 | Select 31 January 2028 in Harbor, then choose Next month in Grid. Repeat for 2027. | Both show 29 February 2028 and 28 February 2027 respectively. No date rolls into March. |
+| A10 | Switch Harbor → Grid → Side by side; leave for Audit and return to Schedule. | Date and selected layout stay consistent. The old #grid/#harbor links and new #split link select the intended layout. |
+| A11 | Use arrow keys in the layout radio group and the grid’s date header. | Layout changes and selected dates work without a mouse. There is one date-header tab stop and one berth-day cell tab stop. |
+| A12 | Try Audit and Side by side at phone width. | Filter fields remain usable; paired views stack, with wide grids/maps scrolling within their own panels. The whole page has no horizontal overflow. |

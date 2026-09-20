@@ -16,7 +16,7 @@ from pathlib import Path
 
 from .importer import ImportResult, import_workbook
 from .models import Berth, DayLoad, Reservation, ReservationKind, fmt_ft
-from .rules import AuditReport, audit, occupancy
+from .rules import AuditReport, audit, fit_check, occupancy
 
 
 def usage_days(result: ImportResult) -> dict[tuple[str, int], int]:
@@ -68,6 +68,50 @@ def _occupant(r: Reservation, berth: Berth) -> dict:
     }
 
 
+def finding_rows(result: ImportResult, report: AuditReport) -> list[dict]:
+    """Portable evidence for filtering. Classification and measurements come from the rules.
+
+    Capacity/uncertainty rows represent individual berth-days; fit rows represent
+    stays. A closure row spans only the actual overlap, not either full booking.
+    """
+    berths = {b.id: b for b in result.berths}
+    rows = []
+
+    def add(category, severity, berth_id, start, end, reservations, message):
+        rows.append({
+            "category": category, "severity": severity, "berth_id": berth_id,
+            "berth": berths[berth_id].name if berth_id in berths else f"Unknown berth #{berth_id}",
+            "start": start.isoformat(), "end": end.isoformat(),
+            "names": [r.display_name for r in reservations],
+            "reservation_ids": [r.id for r in reservations], "message": message,
+            "sources": [r.legacy_ref for r in reservations if r.legacy_ref],
+        })
+
+    for category, pairs in (("fit", report.misfits), ("inactive", report.inactive)):
+        for r, finding in pairs:
+            add(category, "conflict", r.berth_id, r.days.start, r.days.end, [r], finding.message)
+    for r in report.unknown_length:
+        messages = [f.message for f in fit_check(r.vessel, berths[r.berth_id])]
+        add("unknown_fit", "unknown", r.berth_id, r.days.start, r.days.end, [r], " ".join(messages))
+    for category, loads in (("capacity", report.over_capacity), ("unverifiable", report.unverifiable)):
+        for load in loads:
+            message = (f"Shared use cannot be verified on {load.day}: a required length is missing."
+                       if category == "unverifiable" else
+                       f"Over capacity under the berth's sharing rules on {load.day}. "
+                       f"Known occupied length {fmt_ft(load.known_ft)}; "
+                       f"capacity {fmt_ft(load.capacity_ft) if load.capacity_ft is not None else 'unknown'}.")
+            add(category, "unknown" if category == "unverifiable" else "conflict",
+                load.berth.id, load.day, load.day, load.occupants, message)
+    for closure, r in report.closure_conflicts:
+        start, end = max(closure.days.start, r.days.start), min(closure.days.end, r.days.end)
+        add("closure", "conflict", r.berth_id, start, end, [closure, r],
+            f"{r.display_name} overlaps {closure.title} on {start} through {end} (inclusive).")
+    for r in report.orphaned:
+        add("orphaned", "conflict", r.berth_id, r.days.start, r.days.end, [r],
+            "This reservation refers to a berth absent from the imported berth list.")
+    return sorted(rows, key=lambda r: (r["severity"] != "conflict", r["start"], r["berth"], r["category"]))
+
+
 def build_report(result: ImportResult) -> tuple[AuditReport, dict]:
     """Audit the history and gather everything the markdown and JSON need."""
     report = audit(result.berths, result.reservations)
@@ -96,6 +140,7 @@ def build_report(result: ImportResult) -> tuple[AuditReport, dict]:
         "vessel_stays": len(vessel_stays),
         "vessel_stays_with_length": len(with_length),
         "audit_counts": report.counts,
+        "findings": finding_rows(result, report),
         "over_capacity": over_rows,
         "misfits": [
             {"reservation": _occupant(r, next(b for b in result.berths if b.id == r.berth_id)),

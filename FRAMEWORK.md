@@ -3,7 +3,7 @@
 **Deployment update, 19 September 2026:** The requested operable website is at
 <https://dock-scheduler-henna.vercel.app>. Vercel runs FastAPI with persistent Neon
 PostgreSQL; local development keeps SQLite. The deployment work and verification
-are documented in `docs/DEPLOY_VERCEL.md` and decisions 0008–0009. The test suite
+are documented in `docs/DEPLOY_VERCEL.md` and decisions 0008–0010. The test suite
 includes API and storage workflows on both databases. The older Pages sections below describe
 the historical read-only demo, which remains available separately.
 
@@ -16,7 +16,7 @@ the historical read-only demo, which remains available separately.
 
 ---
 
-## Implementation status (19 September 2026)
+## Implementation status (20 September 2026)
 
 | Phase | Planned | What happened |
 |---|---|---|
@@ -25,12 +25,14 @@ the historical read-only demo, which remains available separately.
 | 2 Rules engine | 1.0 h | Done. `dock/rules.py` + `dock/models.py`; 60 sentence-named tests; three review passes found real gaps (string enums, NaN lengths, orphaned stays, known sums downgraded to UNKNOWN) that became decision 0007 and tests. |
 | 3 Importer and audit | 1.0 h | Done. Reproduces the independent data study's extraction; 479 issues logged on the sample; `docs/AUDIT_REPORT.md` generated. A review found the damaged 2010 blocks' true day-1 row sits above the header; fixed and tested. |
 | 4 Storage and API | 0.5 h | Done. SQLite/PostgreSQL with constraints and atomic booking checks; occupancy edits need fresh overrides; measurement edits preview and record affected bookings. |
-| 5 UI and harbor view | 1.0 h | Done. Harbor is the landing view; six tabs including Vessel registries. Reservation editing, measurement review, imported notes and assumptions are accessible from the website. |
+| 5 UI and harbor view | 1.0 h | Done. Harbor is the default Schedule layout; Grid and Side by side share its date. Audit has personal filters; five top-level tabs include Vessel registries. Reservation editing, measurement review, imported notes and assumptions are accessible from the website. |
 | 6 Static demo, README | 0.75 h | Done. `python -m dock.export` writes the snapshot; the same front end runs on it; conflict flags come from the same function the API serves. |
 | 7 Review and rehearsal | 0.75 h | Regression suites cover both databases; browser acceptance checks cover edits and measurement reviews. Current results are recorded with the release. Rehearsal remains Baron's. |
 | 8 Operable deployment (added) | — | FastAPI on Vercel with Neon PostgreSQL; missing persistent configuration prevents startup. |
 
 **Where the plan changed, and why.**
+
+- Audit now supports combined date, berth, name and finding filters with opt-in browser preferences. Schedule combines Harbor and Grid through a three-layout switch and shared date, including a responsive side-by-side view (decision 0010).
 
 - The audit found **0 detected berth-days over capacity** with the available measurements. Missing lengths limit that conclusion. Nine reservation records fail the individual fit check, twelve shared berth-days are unverifiable and one stay overlaps a closure. Duplicate berth rows support the shared-face model.
 - Only **33 of 1,927** vessel stays have a known length, so "UNKNOWN is not OK" (decision 0003) is the common case in history, not an edge case, and the audit reports "unverifiable" days rather than pretending.

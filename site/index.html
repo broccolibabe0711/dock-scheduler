@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dock Scheduler</title>
 <meta name="description" content="Berth reservations with explained fit and capacity checks, reviewed measurements, and a harbor view of 23 years of history.">
-  <link rel="stylesheet" href="style.css?v=20260919-review2">
+  <link rel="stylesheet" href="style.css?v=20260920-workspace2">
 </head>
 <body>
 <header class="top">
@@ -17,8 +17,7 @@
 </header>
 
 <nav class="tabs" role="tablist" aria-label="Views">
-  <button role="tab" id="tab-harbor" class="harbor-tab" aria-controls="view-harbor" data-view="harbor" aria-selected="true">Harbor</button>
-  <button role="tab" id="tab-grid" aria-controls="view-grid" data-view="grid" aria-selected="false" tabindex="-1">Grid</button>
+  <button role="tab" id="tab-schedule" class="harbor-tab" aria-controls="view-schedule" data-view="harbor" aria-selected="true">Schedule</button>
   <button role="tab" id="tab-book" aria-controls="view-book" data-view="book" aria-selected="false" tabindex="-1">Book</button>
   <button role="tab" id="tab-registry" aria-controls="view-registry" data-view="registry" aria-selected="false" tabindex="-1">Vessel registries</button>
   <button role="tab" id="tab-audit" aria-controls="view-audit" data-view="audit" aria-selected="false" tabindex="-1">Audit</button>
@@ -26,20 +25,55 @@
 </nav>
 
 <main>
-  <section id="view-grid" class="view" hidden role="tabpanel" aria-labelledby="tab-grid">
+  <section id="view-schedule" class="view" role="tabpanel" aria-labelledby="tab-schedule">
+    <div class="schedule-heading">
+      <fieldset class="layout-switch">
+        <legend class="sr-only">Schedule layout</legend>
+        <label><input type="radio" name="schedule-layout" value="harbor" checked><span>Harbor</span></label>
+        <label><input type="radio" name="schedule-layout" value="grid"><span>Grid</span></label>
+        <label><input type="radio" name="schedule-layout" value="split" id="schedule-split"><span>Side by side</span></label>
+      </fieldset>
+      <p class="schedule-date" id="schedule-date" role="status"></p>
+    </div>
+    <p class="hint" id="schedule-help">Switch layouts without losing your date. Side by side follows the same day in both views.</p>
+    <div id="schedule-workspace" class="schedule-workspace">
+  <section id="view-grid" class="schedule-pane" hidden role="region" aria-label="Month grid">
+    <h2 class="pane-title">Month grid</h2>
     <div class="toolbar">
       <button id="grid-prev" aria-label="Previous month" title="Previous month">◀</button>
       <input type="month" id="grid-month" aria-label="Month" pattern="\d{4}-(0[1-9]|1[0-2])">
       <button id="grid-next" aria-label="Next month" title="Next month">▶</button>
       <button id="grid-today">Today</button>
       <button id="grid-history">Sample history</button>
-      <span class="hint">Select a bar for details or editing. In the day grid, use arrow keys to move and Enter to book.</span>
+      <span class="hint">Choose a day number to sync Harbor. Select a bar to edit; select an empty berth-day to book. Arrow keys move between berth-days.</span>
     </div>
     <div id="grid" class="grid"></div>
     <div class="legend" id="grid-legend"></div>
     <div id="grid-notes"></div>
     <p class="sr-only" id="grid-status" aria-live="polite"></p>
   </section>
+  <section id="view-harbor" class="schedule-pane" role="region" aria-label="Harbor map">
+    <h2 class="pane-title">Harbor</h2>
+    <div class="toolbar">
+      <button id="harbor-prev" aria-label="Previous day" title="Previous day">◀</button>
+      <input type="date" id="harbor-day" aria-label="Day">
+      <button id="harbor-next" aria-label="Next day" title="Next day">▶</button>
+      <button id="harbor-play" aria-pressed="false">▶ Play</button>
+      <button id="harbor-today">Today</button>
+      <button id="harbor-history">Sample history</button>
+      <button id="harbor-example">Fit example · 2010</button>
+      <span class="hint">Try Sample history for a closure overlap, or Fit example for a vessel that is too long.</span>
+    </div>
+    <p class="hint">Schematic layout. Known vessel and berth lengths share one scale; dashed hulls have unknown lengths. <a href="guide.html#rules-and-assumptions">Rules and assumptions</a></p>
+    <div class="harbor-layout">
+      <div id="harbor" class="harbor"></div>
+      <aside id="harbor-panel" class="panel" aria-live="polite"></aside>
+    </div>
+  </section>
+    </div>
+  </section>
+
+
 
   <section id="view-book" class="view" hidden role="tabpanel" aria-labelledby="tab-book">
     <form id="book-form" class="book" autocomplete="off">
@@ -91,23 +125,7 @@
     <div id="book-suggestions" class="suggestions"></div>
   </section>
 
-  <section id="view-harbor" class="view" role="tabpanel" aria-labelledby="tab-harbor">
-    <div class="toolbar">
-      <button id="harbor-prev" aria-label="Previous day" title="Previous day">◀</button>
-      <input type="date" id="harbor-day" aria-label="Day">
-      <button id="harbor-next" aria-label="Next day" title="Next day">▶</button>
-      <button id="harbor-play" aria-pressed="false">▶ Play</button>
-      <button id="harbor-today">Today</button>
-      <button id="harbor-history">Sample history</button>
-      <button id="harbor-example">Fit example · 2010</button>
-      <span class="hint">Try Sample history for a closure overlap, or Fit example for a vessel that is too long.</span>
-    </div>
-    <p class="hint">Schematic layout. Known vessel and berth lengths share one scale; dashed hulls have unknown lengths. <a href="guide.html#rules-and-assumptions">Rules and assumptions</a></p>
-    <div class="harbor-layout">
-      <div id="harbor" class="harbor"></div>
-      <aside id="harbor-panel" class="panel" aria-live="polite"></aside>
-    </div>
-  </section>
+
 
   <section id="view-registry" class="view" hidden role="tabpanel" aria-labelledby="tab-registry">
     <h2>Vessel registries</h2>
@@ -194,7 +212,8 @@
   <a href="https://github.com/broccolibabe0711/dock-scheduler">Source and decisions on GitHub</a>
 </footer>
 
-<script src="harbor.js?v=20260919-review2"></script>
-<script src="app.js?v=20260919-review2"></script>
+<script src="harbor.js?v=20260920-workspace2"></script>
+<script src="audit.js?v=20260920-workspace2"></script>
+<script src="app.js?v=20260920-workspace2"></script>
 </body>
 </html>

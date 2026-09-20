@@ -14,7 +14,7 @@ The follow-up release adds reservation editing, operational notes and reviewed m
 
 | What the user sees or does | What the engineering does, and why |
 |---|---|
-| **Harbor:** the first highlighted tab and the normal landing view. Step through dates, press Play, or choose Sample history. | The browser requests the day's occupants and findings. `harbor.js` draws SVG hulls and berth faces. Known lengths share a scale of one SVG unit per foot. Dashed hulls identify missing lengths; their 40 ft drawing size is a placeholder, never a measured value used to approve a booking. The layout and hull widths are illustrative. |
+| **Harbor:** the default layout inside Schedule and the normal landing view. Step through dates, press Play, or choose Sample history. | The browser requests the day's occupants and findings. `harbor.js` draws SVG hulls and berth faces. Known lengths share a scale of one SVG unit per foot. Dashed hulls identify missing lengths; their 40 ft drawing size is a placeholder, never a measured value used to approve a booking. The layout and hull widths are illustrative. |
 | **Grid:** inspect a month, select a reservation, or click an empty berth-day to begin a booking. | The same reservations are arranged into date bars. Server-provided flags mark fit/capacity problems and unknown measurements. This retains the familiar spreadsheet layout while removing the need to judge all conflicts by eye. |
 | **Book:** select a vessel, berth and inclusive date range; choose vessel, event or closure. | FastAPI validates the request and constructs domain objects. A vessel reservation refers to a vessel; an event or closure uses a title. Reversed dates, invalid lengths and unexpected fields are rejected. |
 | **Check:** ask whether the proposed booking works. | `/api/check` returns OK, CONFLICT or UNKNOWN with structured findings. It does not create a reservation or vessel. The browser renders the explanation rather than implementing a second rule system. |
@@ -119,7 +119,7 @@ Output: the [live app](https://dock-scheduler-henna.vercel.app/), [deployment gu
 
 The repeatable deployment script reads the live API, checks a 45 ft fit conflict and invalid dates, proves that measurement preview does not save, and checks that notes and review storage are available. Its optional write smoke creates a labelled test event, reads it back, refuses a competing event, edits its notes and cancels it in a cleanup step.
 
-Harbor is the default landing view. “Fit example · 2010” and “Sample history” make meaningful examples easy to find. Six tabs include a searchable vessel registry and the original workbook link. The guide, footer and Harbor caption now expose the assumptions and explain the schematic. Keyboard grid navigation uses one day-cell tab stop with arrow keys, and edits invalidate stale check results.
+Harbor is the default landing view. “Fit example · 2010” and “Sample history” make meaningful examples easy to find. Five top-level tabs include a searchable vessel registry; the registry links to the original workbook, while Schedule provides Harbor, Grid and Side by side layouts. The guide, footer and Harbor caption now expose the assumptions and explain the schematic. Keyboard grid navigation uses one day-cell tab stop with arrow keys, and edits invalidate stale check results.
 
 ### 14. Close the handoff and rehearse
 
@@ -175,3 +175,9 @@ If demonstrating Save or an override, use a clearly labeled demo record and canc
 | CI | Automated checks run by GitHub Actions when code is pushed or a pull request changes. |
 | Provenance | A record of where imported information came from and how it was interpreted. |
 | Deployment | Publishing the application code and configuration so people can use it at a URL. The database stores the lasting booking data separately. |
+
+## Update: personal audit and one schedule, 20 September 2026
+
+Python exports detailed historical finding evidence so the browser can combine name, berth, date and type filters without rerunning or weakening the rules. A capacity finding keeps all occupants, even when a name search selects it. Closure dates are restricted to their actual overlap. Counts explicitly describe findings, and the original whole-workbook report remains separate. Optional browser storage remembers validated filter values; no account or shared preference record is required.
+
+Schedule now has a Harbor / Grid / Side by side switch. The layouts share a selected ISO day and month. Changing months clamps the day to the target month, and date headers support keyboard selection. A finding can open both current views at its historical dates; the interface explains that later live edits may have changed what appears. The paired layout stacks on phones. Python tests reconcile exported findings to the audit, frontend tests cover combined and inclusive filters, and browser checks cover saved preferences and linked layouts.

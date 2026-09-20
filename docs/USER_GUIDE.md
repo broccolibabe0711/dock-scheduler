@@ -4,7 +4,7 @@ Dock Scheduler manages vessels, events and closures across berths of different l
 
 ## Start here
 
-1. Open Harbor and choose **Fit example · 2010**. R/V Clear Tern is 120 ft long on the 75 ft North Pier Face: it overhangs by 45 ft.
+1. Open Schedule (Harbor is the default layout) and choose **Fit example · 2010**. R/V Clear Tern is 120 ft long on the 75 ft North Pier Face: it overhangs by 45 ft.
 2. Choose **Sample history** for 12 July 2017. Utility work closes South Float East while OSV Amber Reef is scheduled there.
 3. Open Book to check a proposed reservation or ask for alternatives. Check and Suggest do not save anything.
 4. Use Vessel registries to find dimensions and open the source workbook. Review length previews a correction and shows its impact on existing bookings.
@@ -13,15 +13,24 @@ Dock Scheduler manages vessels, events and closures across berths of different l
 
 | View or action | What happens underneath |
 |---|---|
-| Harbor | Python supplies occupants and findings. SVG draws known vessel and berth lengths on one scale. Location and hull width are illustrative; unknown lengths use a dashed 40 ft drawing placeholder. |
-| Grid | Reservations appear as month bars. Select a bar to inspect, edit or cancel it. Use arrow keys within the day cells, then Enter to start a booking. Imported notes appear below the grid. |
+| Harbor | The default Schedule layout. Python supplies occupants and findings. SVG draws known vessel and berth lengths on one scale. Location and hull width are illustrative; unknown lengths use a dashed 40 ft drawing placeholder. |
+| Grid | Choose Grid in the Schedule layout switch. Reservations appear as month bars. Select a bar to inspect, edit or cancel it. Use arrow keys within the day cells, then Enter to start a booking. Imported notes appear below the grid. |
+| Side by side | Grid and Harbor share one selected day. Choose a day number in Grid or change the Harbor date; both follow. Changing months clamps the selected day to the month’s last day. The views sit next to each other on wide screens and stack on phones. |
 | Book | FastAPI validates the input; one Python rules engine returns OK, CONFLICT or UNKNOWN. Saving repeats the decision inside a write transaction. A blocking result requires an override reason. |
 | Suggestions | The same rules evaluate available alternatives, ranked by berth length. An UNKNOWN option still needs measurements or an explicit override. |
 | Reservation editing | Dates, berth and status are rechecked. A reason from an earlier booking does not cover a new conflicting edit. Notes-only changes can be saved even when historical dimensions are missing. |
 | Vessel registries | Search names, length, draft, operator and notes. A length correction previews affected stays and neighbours. Blocking outcomes require a review reason, saved alongside the measurement and findings. A changed schedule invalidates an old acknowledgement. |
 | Measurement history | The registry's Review length dialog shows previous corrections and reasons. A reservation's details show its own vessel's measurement reviews. This is a focused measurement record, not a complete user-attributed edit log. |
-| Audit | A fixed report of the original import. Later live edits are reflected in Grid and Harbor, not added to this historical report. |
+| Audit | Filter the original workbook’s findings by vessel/event name, berth, inclusive dates and finding type. Counts describe matching findings. Remember filters on this browser is optional. A separate whole-workbook reference retains the global totals. Later live edits appear in Grid and Harbor, not this historical report. |
 | Issues | Source locations and explanations for ambiguous or malformed workbook data. Imported operational notes remain context rather than reservations. |
+
+## Personalizing Audit
+
+Combine any of the five filters to answer a specific question. For example, choose **South Float East**, **Closure overlap**, and **11–15 July 2017** to isolate Utility work and OSV Amber Reef. Search accepts either vessel or event names. Confirmed conflicts and Missing evidence provide quick shortcuts; **Clear filters** resets the entire selection.
+
+Check **Remember my filters on this browser** to restore your selection after reloading. Uncheck it to forget the saved selection. A storage restriction does not stop filtering. An invalid date range displays an explanation and retains the last valid results.
+
+Findings have different units: a fit finding describes a stay, while a shared-capacity finding describes a berth-day. One stay can have more than one finding. The whole-workbook reference is intentionally unaffected by filters. **Open these dates in Grid + Harbor** opens the current ledger for comparison; later live edits can differ from the original historical evidence.
 
 ## Why the rules use three answers
 

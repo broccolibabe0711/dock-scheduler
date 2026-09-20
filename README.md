@@ -64,7 +64,7 @@ Regenerate the audit report and the static snapshot:
 
 ## What you can do in it
 
-- **Harbor is the default landing view.** Sample history opens the July 2017 closure overlap; Fit example opens the July 2010 overhang. Known lengths share a scale; geometry and widths are schematic, and unknown hulls use a labelled 40 ft placeholder.
+- **Schedule opens in Harbor mode.** Switch between Harbor, Grid and Side by side without losing the selected date. Sample history opens the July 2017 closure overlap; Fit example opens the July 2010 overhang. Known lengths share a scale; geometry and widths are schematic, and unknown hulls use a labelled 40 ft placeholder.
 - **Grid**: the month grid the coordinator already knows, with bars for stays, red underlines on days a berth is over capacity, amber where a length is missing. Click an empty day to start a booking there.
 - **Book**: pick a vessel (or type a new one), berth and dates. *Check* returns a verdict and findings in words and numbers; *Suggest a berth* ranks alternatives, smallest fitting berth first; *Save* refuses blocking verdicts unless you write an override reason, which is kept on the record.
 - **Harbor**: a plan of the waterfront drawn to one scale. Hulls are sized to their real length; step or play through days; over-capacity berths pulse, over-length hulls overhang with a "+45 ft" badge, unknown lengths are dashed.
@@ -91,7 +91,7 @@ tests/            rules (table-driven, sentence-named), importer (fixture + real
 docs/decisions/   one paragraph per decision; docs/ASSUMPTIONS.md; docs/data-study/ the analysis behind it all
 ```
 
-Python 3.12, standard-library `sqlite3`, `openpyxl`, FastAPI, `psycopg`, `pytest`. No JavaScript toolchain.
+Python 3.12, standard-library `sqlite3`, `openpyxl`, FastAPI, `psycopg`, `pytest`. No JavaScript build toolchain; Node runs the frontend tests.
 
 On Vercel, `DATABASE_URL` selects persistent PostgreSQL. Missing database configuration
 stops startup instead of losing edits in temporary storage. See [deployment instructions](docs/DEPLOY_VERCEL.md)
@@ -123,3 +123,11 @@ The numbered list is in [docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md). The biggest:
 ## Decisions
 
 [docs/decisions/](docs/decisions/): end-inclusive days, linear capacity, unknown is not OK, rules in one pure module, an importer that records rather than guesses, a static demo without rules in JavaScript, validation at the edge.
+
+### Audit filters and linked views
+
+Schedule offers Harbor, Grid and Side by side, all following the same date. Choose a grid day number to move Harbor; month changes preserve the day when possible and clamp it when necessary. Existing `#grid` and `#harbor` links still work, and `#split` opens both layouts.
+
+Audit filters the fixed sample evidence by name, berth, inclusive dates and finding type. Personal filter preferences are opt-in and stored only in the browser. Counts describe matching findings, while the separately labelled workbook reference keeps its original totals. Finding links open the same dates in the current ledger. See decision 0010 for the evidence model and historical/live distinction.
+
+Run the frontend filter checks with `node --test tests/frontend.test.cjs` (Node 22 or later). The Python export tests also reconcile every finding category to the rules and verify closure overlap dates. CI runs both suites. Regenerate the fixed audit with `python -m dock.export "data/Dock Schedule - Synthetic Sample.xlsx" --out site/data`.

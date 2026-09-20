@@ -21,7 +21,7 @@ def verify(base_url, write_smoke=False):
         if '.vercel.app' in base_url:
             assert meta['storage'] == 'postgres', meta
         checks.append('Live API and persistent storage')
-        for path, marker in [('/', 'measurement-form'), ('/guide.html', 'Rules and assumptions'), ('/app.js', 'checkVesselChange')]:
+        for path, marker in [('/', 'schedule-workspace'), ('/guide.html', 'Rules and assumptions'), ('/app.js', 'checkVesselChange'), ('/audit.js', 'filterRows')]:
             r = client.get(path)
             r.raise_for_status()
             assert marker in r.text, (path, marker)
@@ -48,6 +48,13 @@ def verify(base_url, write_smoke=False):
         assert isinstance(get('/api/annotations', params={'start': '2017-01-01', 'end': '2017-12-31'}), list)
         assert get('/api/audit')['totals']['reservations'] == 1982
         checks.append('Operational notes and fixed historical audit available')
+        audit = get('/data/audit.json')
+        rows = audit['findings']
+        assert sum(r['category'] == 'fit' for r in rows) == 9
+        assert sum(r['category'] == 'unverifiable' for r in rows) == 12
+        closure = [r for r in rows if r['category'] == 'closure']
+        assert len(closure) == 1 and closure[0]['start'] == '2017-07-11' and closure[0]['end'] == '2017-07-15'
+        checks.append('Filterable audit evidence reconciles: nine fit findings, twelve shared unknown days, one closure overlap')
 
         if write_smoke:
             day = date.today() + timedelta(days=5000)

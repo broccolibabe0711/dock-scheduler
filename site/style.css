@@ -155,5 +155,65 @@ summary { cursor: pointer; font-weight: 600; }
 .foot { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 24px; color: var(--muted); font-size: .85rem; }
 .empty { color: var(--muted); padding: 16px; }
 
+/* Linked schedule layouts: a single calendar state, two presentations. */
+body.wide-schedule { max-width: 1700px; }
+.schedule-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+.layout-switch { display: flex; border: 1px solid var(--line); border-radius: 9px; padding: 3px; margin: 0; background: var(--panel); gap: 3px; }
+.layout-switch label { position: relative; cursor: pointer; }
+.layout-switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.layout-switch span { display: block; padding: 9px 16px; font-size: .9rem; border-radius: 6px; }
+.layout-switch input:checked + span { background: var(--accent); color: var(--accent-ink); font-weight: 650; }
+.layout-switch input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 3px; }
+.schedule-date { margin: 0; font-size: .85rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.schedule-pane { min-width: 0; }
+.pane-title { margin-top: 4px; }
+.schedule-workspace.is-split { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 18px; align-items: start; }
+.is-split .schedule-pane { padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+.is-split .harbor-layout { grid-template-columns: minmax(0, 1fr); }
+.grid-head .grid-date { font: inherit; border: 0; border-left: 1px solid var(--line); border-radius: 0; padding: 4px 0; min-width: 0; }
+.grid-head .grid-date.selected-day { color: var(--accent-ink); background: var(--accent); font-weight: 700; }
+.grid-row .cell.selected-day { background: color-mix(in srgb, var(--accent) 15%, transparent); }
+.grid-date:focus-visible { outline-offset: -2px; }
+.grid-head > div:first-child { position: sticky; left: 0; z-index: 2; background: var(--panel); }
+
+/* Personal audit filters and evidence cards. */
+.audit-filters { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); padding: 16px; margin: 18px 0; }
+.audit-fields { display: grid; grid-template-columns: minmax(150px, 1.3fr) minmax(150px, 1fr) minmax(165px, 1fr) minmax(140px, .8fr) minmax(140px, .8fr); gap: 12px; }
+.audit-fields label { min-width: 0; }
+.audit-fields input, .audit-fields select { width: 100%; min-width: 0; }
+.audit-filter-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 14px; }
+.audit-quick { display: flex; gap: 5px; flex-wrap: wrap; }
+.audit-quick button[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--panel)); }
+.check-label { flex-direction: row; align-items: center; gap: 8px; cursor: pointer; }
+.check-label input { width: 17px; height: 17px; }
+.audit-error { color: var(--bad); }
+.audit-error:empty, .audit-filters p:empty { display: none; }
+.audit-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.audit-findings { list-style: none; margin: 14px 0; padding: 0; display: grid; gap: 12px; }
+.audit-finding { padding: 16px 18px; border: 1px solid var(--line); border-left: 3px solid var(--bad); border-radius: 8px; background: var(--panel); }
+.audit-finding.unknown { border-left-color: var(--unknown); }
+.audit-finding h3 { margin-top: 12px; overflow-wrap: anywhere; }
+.audit-finding p { margin: 8px 0 12px; }
+.audit-finding details { margin: 12px 0; }
+.audit-finding-top { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+.finding-badge { border: 1px solid currentColor; padding: 3px 8px; border-radius: 4px; font-size: .75rem; font-weight: 650; }
+.finding-badge.conflict { color: var(--bad); }
+.finding-badge.unknown { color: var(--unknown); }
+.finding-berth { color: var(--muted); font-size: .85rem; }
+.audit-pagination { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 24px; }
+.audit-overview { border-top: 1px solid var(--line); padding-top: 20px; }
+@media(max-width: 1100px) {
+  .schedule-workspace.is-split { grid-template-columns: minmax(0, 1fr); }
+  .audit-fields { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media(max-width: 600px) {
+  .audit-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .audit-fields label:first-child { grid-column: 1 / -1; }
+  .audit-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .layout-switch span { padding: 9px 13px; }
+  .is-split .schedule-pane { padding: 10px; }
+  .audit-finding { padding: 13px; }
+}
+
 /* the hidden attribute must win over every display rule above */
 [hidden] { display: none !important; }

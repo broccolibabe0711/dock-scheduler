@@ -13,7 +13,8 @@
   const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
   const pad = (n) => String(n).padStart(2, '0');
   const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-  const VIEWS = ['harbor', 'grid', 'book', 'registry', 'audit', 'issues'];
+  const VIEWS = ['harbor', 'grid', 'split', 'book', 'registry', 'audit', 'issues'];
+  const SCHEDULE_VIEWS = ['harbor', 'grid', 'split'];
 
   function el(tag, attrs = {}, ...children) {
     const node = document.createElement(tag);
@@ -69,7 +70,7 @@
     },
     async loadStatic() {
       const get = async (name) => {
-        const r = await fetch(`data/${name}.json`);
+        const r = await fetch(`data/${name}.json?v=20260920-workspace`);
         if (!r.ok) throw new Error(`data/${name}.json is missing (${r.status})`);
         return r.json();
       };
@@ -141,7 +142,9 @@
       }
       return out;
     },
-    async audit() { return this.mode === 'static' ? this.static.audit : this.json('api/audit'); },
+    // Audit is always the fixed sample snapshot, including its finding details.
+    // Keep it separate from the editable ledger shown by Grid and Harbor.
+    async audit() { return this.mode === 'static' ? this.static.audit : this.json('data/audit.json?v=20260920-workspace'); },
     async issues(kind) {
       if (this.mode === 'static') { const all = this.static.issues; return { counts: all.counts, issues: kind ? all.issues.filter((i) => i.kind === kind) : all.issues }; }
       return this.json(`api/issues?limit=2000${kind ? `&kind=${encodeURIComponent(kind)}` : ''}`);
@@ -166,27 +169,75 @@
   // ---------------------------------------------------------------- state and navigation
   const state = {
     berths: [], month: null, day: null, timer: null, harbor: null, loadsByMonth: new Map(),
-    vessel: null, vesselHits: [], vesselSeq: 0,
+    vessel: null, vesselHits: [], vesselSeq: 0, view: 'harbor', scheduleView: 'harbor',
   };
 
-  const currentView = () => ($$('.tabs button').find((b) => b.getAttribute('aria-selected') === 'true') || { dataset: {} }).dataset.view || 'harbor';
+  const currentView = () => state.view;
 
   function showView(name) {
     if (!VIEWS.includes(name)) name = 'harbor';
+    const scheduling = SCHEDULE_VIEWS.includes(name);
+    state.view = name;
+    if (scheduling) state.scheduleView = name;
     if (Data.mode === 'api') forgetLoads();
-    if (name !== 'harbor') stopPlaying();
+    if (!['harbor', 'split'].includes(name)) stopPlaying();
     $$('.tabs button').forEach((b) => {
-      const on = b.dataset.view === name;
+      const on = b.id === 'tab-schedule' ? scheduling : b.dataset.view === name;
       b.setAttribute('aria-selected', String(on));
       b.tabIndex = on ? 0 : -1;
     });
-    $$('.view').forEach((v) => { v.hidden = v.id !== `view-${name}`; });
+    $$('.view').forEach((v) => { v.hidden = v.id !== `view-${scheduling ? 'schedule' : name}`; });
+    $('#view-grid').hidden = !['grid', 'split'].includes(name);
+    $('#view-harbor').hidden = !['harbor', 'split'].includes(name);
+    $('#schedule-workspace').classList.toggle('is-split', name === 'split');
+    document.body.classList.toggle('wide-schedule', name === 'split');
+    $$('[name="schedule-layout"]').forEach((r) => { r.checked = r.value === state.scheduleView; });
+    updateScheduleDate();
     if (location.hash !== `#${name}`) history.replaceState(null, '', `#${name}`);
-    if (name === 'grid') renderGrid();
-    if (name === 'harbor') renderHarbor();
+    if (['grid', 'split'].includes(name)) renderGrid();
+    if (['harbor', 'split'].includes(name)) renderHarbor();
     if (name === 'registry') renderRegistry();
     if (name === 'audit') renderAudit();
     if (name === 'issues') renderIssues();
+  }
+
+  function updateScheduleDate() {
+    $('#schedule-date').textContent = `Selected day · ${state.day}`;
+    $('#schedule-help').textContent = currentView() === 'split'
+      ? 'Both views follow the selected day. Choose a day number in the grid or change the Harbor date. On smaller screens the views stack.'
+      : 'Switch layouts without losing your date. Side by side follows the same day in both views.';
+    $$('#grid [data-day]').forEach((cell) => {
+      const selected = cell.dataset.day === state.day;
+      cell.classList.toggle('selected-day', selected);
+      if (cell.classList.contains('grid-date')) {
+        cell.setAttribute('aria-pressed', String(selected));
+        cell.tabIndex = selected ? 0 : -1;
+      }
+    });
+    const selected = $('#grid .grid-date.selected-day');
+    if (selected && !$('#view-grid').hidden) {
+      const grid = $('#grid'), bounds = grid.getBoundingClientRect(), dayBounds = selected.getBoundingClientRect();
+      // Keep the selected column visible beside the sticky berth labels without
+      // scrolling the page or taking focus from the date control.
+      if (dayBounds.right > bounds.right - 8) grid.scrollLeft += dayBounds.right - bounds.right + 8;
+      else if (dayBounds.left < bounds.left + 202) grid.scrollLeft -= bounds.left + 202 - dayBounds.left;
+    }
+  }
+
+  function setScheduleDay(day) {
+    if (!window.Audit.isDate(day)) return;
+    const changedMonth = state.month !== day.slice(0, 7);
+    state.day = day;
+    state.month = day.slice(0, 7);
+    updateScheduleDate();
+    if (changedMonth && ['grid', 'split'].includes(currentView())) renderGrid();
+    if (['harbor', 'split'].includes(currentView())) renderHarbor();
+  }
+
+  function setScheduleMonth(month) {
+    if (!isMonth(month)) return;
+    const { n } = monthRange(month);
+    setScheduleDay(`${month}-${pad(Math.min(Number(state.day.slice(8)), n))}`);
   }
 
   function loadsForMonth(ym) {
@@ -212,7 +263,9 @@
   const failed = (host, err) => host.replaceChildren(el('div', { class: 'empty', text: `Could not load: ${err.message || err}` }));
 
   // ---------------------------------------------------------------- grid view
+  let gridSeq = 0;
   async function renderGrid() {
+    const seq = ++gridSeq;
     const ym = state.month;
     const { y, m, n, start, end } = monthRange(ym);
     $('#grid-month').value = ym;
@@ -220,8 +273,8 @@
     grid.replaceChildren(el('div', { class: 'empty', text: 'Loading…' }));
     let reservations, loads, notes;
     try { [reservations, loads, notes] = await Promise.all([Data.reservations(start, end, true), loadsForMonth(ym), Data.annotations(start, end)]); }
-    catch (err) { failed(grid, err); return; }
-    if (ym !== state.month) return; // the user moved on while this month was loading
+    catch (err) { if (seq === gridSeq) failed(grid, err); return; }
+    if (seq !== gridSeq || ym !== state.month) return;
     const loadIndex = new Map(loads.map((l) => [`${l.berth_id}|${l.day}`, l]));
     const fitIndex = new Map();
     for (const l of loads) for (const o of l.occupants) fitIndex.set(o.id, o.fit);
@@ -230,7 +283,19 @@
     const head = el('div', { class: 'grid-head' }, el('div', { text: `${MONTHS[m - 1]} ${y}` }));
     for (let d = 1; d <= n; d++) {
       const w = weekday(`${ym}-${pad(d)}`);
-      head.append(el('div', { class: `day${w === 'S' ? ' weekend' : ''}`, text: `${w}\n${d}` }));
+      const iso = `${ym}-${pad(d)}`;
+      head.append(el('button', { type: 'button', class: `day grid-date${w === 'S' ? ' weekend' : ''}`,
+        text: `${w}\n${d}`, 'data-day': iso, 'aria-label': `Select ${iso} for Grid and Harbor`,
+        onclick: () => { stopPlaying(); setScheduleDay(iso); },
+        onkeydown: (ev) => {
+          const moves = { ArrowLeft: d - 1, ArrowRight: d + 1, Home: 1, End: n };
+          if (!(ev.key in moves)) return;
+          ev.preventDefault();
+          const next = `${ym}-${pad(Math.max(1, Math.min(n, moves[ev.key])))}`;
+          head.querySelector(`[data-day="${next}"]`).focus();
+          stopPlaying();
+          setScheduleDay(next);
+        } }));
     }
     gridTable.append(head);
 
@@ -249,6 +314,7 @@
         const index = rowIndex * n + d - 1;
         const cell = el('div', {
           class: `cell${l && l.over_capacity ? ' over' : ''}${l && l.unverifiable ? ' unverifiable' : ''}`,
+          'data-day': iso,
           role: 'button', tabindex: index === 0 ? '0' : '-1', 'aria-label': `${b.name}, ${iso}: book here`,
           title: l ? loadTitle(l, b) : '', onclick: open,
           onkeydown: (ev) => {
@@ -287,6 +353,7 @@
       gridTable.append(row);
     }
     grid.replaceChildren(gridTable);
+    updateScheduleDate();
     $('#grid-status').textContent = `${MONTHS[m - 1]} ${y}: ${reservations.length} reservation(s), ${flagged} flagged berth-day(s).`;
     renderLegend();
     $('#grid-notes').replaceChildren(annotationList(notes, 'Imported operational notes for this month'));
@@ -331,10 +398,12 @@
 
   // ---------------------------------------------------------------- booking view
   function startBooking(berth, iso) {
+    invalidateBooking();
     $('#book-berth').value = berth.id;
     $('#book-start').value = iso;
     $('#book-end').value = iso;
     showView('book');
+    setScheduleDay(iso);
     const target = $('#book-kind').value === 'vessel' ? $('#book-vessel') : $('#book-title');
     target.focus();
   }
@@ -490,7 +559,7 @@
       refreshSummary();
       renderResult(out.check, `Saved as reservation #${out.reservation.id} (${out.reservation.start}..${out.reservation.end}).`);
       $('#book-override').value = '';
-      $('#book-result').append(el('p', {}, el('button', { type: 'button', text: 'See it in the grid', onclick: () => { state.month = out.reservation.start.slice(0, 7); showView('grid'); } })));
+      $('#book-result').append(el('p', {}, el('button', { type: 'button', text: 'See it in the grid', onclick: () => { setScheduleDay(out.reservation.start); showView('grid'); } })));
     } catch (err) { showError(err); }
     finally { thaw(); }
   }
@@ -513,7 +582,9 @@
   }
 
   // ---------------------------------------------------------------- harbor view
+  let harborSeq = 0;
   async function renderHarbor() {
+    const seq = ++harborSeq;
     const host = $('#harbor');
     if (!window.Harbor) { host.replaceChildren(el('div', { class: 'empty', text: 'harbor.js did not load.' })); return; }
     if (!state.harbor) {
@@ -527,8 +598,8 @@
       [loads, notes] = await Promise.all([loadsForMonth(day.slice(0, 7)), Data.annotations(day, day)]);
       loads = loads.filter((l) => l.day === day);
     }
-    catch (err) { stopPlaying(); failed($('#harbor-panel'), err); return; }
-    if (day !== state.day) return; // scrubbed past this day while it was loading
+    catch (err) { if (seq === harborSeq) { stopPlaying(); failed($('#harbor-panel'), err); } return; }
+    if (seq !== harborSeq || day !== state.day) return;
     const byBerth = {};
     const flags = { overCapacity: new Set(), unverifiable: new Set(), misfits: new Set(), unknownLength: new Set() };
     for (const l of loads) {
@@ -583,8 +654,7 @@
   function stepDay(n) {
     const next = addDays(state.day, n);
     if (Data.meta && Data.meta.last_day && next > addDays(Data.meta.last_day, 365)) { stopPlaying(); return; }
-    state.day = next;
-    renderHarbor();
+    setScheduleDay(next);
   }
   function stopPlaying() {
     if (!state.timer) return;
@@ -750,13 +820,18 @@
     }
   }
 
+  let auditSeq = 0;
   async function renderAudit() {
     const host = $('#audit');
+    if (host.dataset.ready) return;
+    const seq = ++auditSeq;
     host.replaceChildren(el('div', { class: 'empty', text: 'Loading…' }));
     let a;
-    try { a = await Data.audit(); } catch (err) { failed(host, err); return; }
+    try { a = await Data.audit(); } catch (err) { if (seq === auditSeq) failed(host, err); return; }
+    if (seq !== auditSeq) return;
     const t = a.totals, c = a.audit_counts;
-    host.replaceChildren(
+    const overview = el('details', { class: 'audit-overview' });
+    overview.replaceChildren(
       el('h2', { text: 'Historical import audit' }),
       el('p', {}, 'A fixed audit of the original workbook at import time. Later live bookings and measurement changes are not included; Grid and Harbor show current data. ',
         el('a', { href: 'https://github.com/broccolibabe0711/dock-scheduler/blob/main/docs/AUDIT_REPORT.md', text: 'Full report' }), '.'),
@@ -779,11 +854,25 @@
       el('p', { class: 'hint', text: 'sheet value / what the grids contain. The summary cannot be reproduced from the grids; it is reference material, not ground truth.' }),
       el('h2', { text: 'What the importer logged instead of guessing' }),
       table(['Issue', 'Count', 'Examples'], Object.entries(a.issues_by_kind).map(([k, n]) => [k, String(n), el('div', {}, ...(a.issue_examples[k] || []).map((e) => el('div', { class: 'hint', text: e })))])));
-    for (const t of $$('table', host)) {
+    for (const t of $$('table', overview)) {
       const wrap = el('div', { class: 'table-scroll', tabindex: '0', role: 'region', 'aria-label': t.previousElementSibling?.textContent || 'Audit table' });
       t.replaceWith(wrap);
       wrap.append(t);
     }
+    overview.prepend(el('summary', { text: 'Whole-workbook reference · unaffected by filters' }));
+    const explorer = el('div', { id: 'audit-explorer' });
+    host.replaceChildren(el('h2', { text: 'Historical audit · your view' }),
+      el('p', { class: 'hint', text: 'Explore findings from the original workbook. These are historical results, not a fresh audit of live edits. Opening dates in Grid + Harbor shows the current ledger.' }),
+      explorer, overview);
+    try {
+      window.Audit.create(explorer, a, { el, stat, onExplore: (finding, filters) => {
+        stopPlaying();
+        setScheduleDay(filters.from && filters.from > finding.start ? filters.from : finding.start);
+        showView('split');
+        $('#schedule-split').focus();
+      } });
+      host.dataset.ready = 'true';
+    } catch (err) { failed(explorer, err); }
   }
 
   // ---------------------------------------------------------------- issues view
@@ -926,7 +1015,7 @@
   // ---------------------------------------------------------------- init
   function wireTabs() {
     const tabs = $$('.tabs button');
-    tabs.forEach((b) => b.addEventListener('click', () => showView(b.dataset.view)));
+    tabs.forEach((b) => b.addEventListener('click', () => showView(b.id === 'tab-schedule' ? state.scheduleView : b.dataset.view)));
     $('.tabs').addEventListener('keydown', (ev) => {
       const i = tabs.indexOf(document.activeElement);
       if (i < 0) return;
@@ -935,7 +1024,7 @@
       ev.preventDefault();
       const next = tabs[(moves[ev.key] + tabs.length) % tabs.length];
       next.focus();
-      showView(next.dataset.view);
+      showView(next.id === 'tab-schedule' ? state.scheduleView : next.dataset.view);
     });
     window.addEventListener('hashchange', () => { const v = location.hash.slice(1); const next = VIEWS.includes(v) ? v : 'harbor'; if (next !== currentView()) showView(next); });
   }
@@ -956,20 +1045,21 @@
     const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
     $('#book-start').value = Data.mode === 'api' ? today : last;
     $('#book-end').value = $('#book-start').value;
-    $('#grid-today').onclick = () => { state.month = today.slice(0, 7); renderGrid(); };
-    $('#grid-history').onclick = () => { state.month = '2017-07'; renderGrid(); };
-    $('#harbor-today').onclick = () => { stopPlaying(); state.day = today; renderHarbor(); };
-    $('#harbor-history').onclick = () => { stopPlaying(); state.day = '2017-07-12'; renderHarbor(); };
-    $('#harbor-example').onclick = () => { stopPlaying(); state.day = '2010-07-29'; renderHarbor(); };
+    $('#grid-today').onclick = () => { stopPlaying(); setScheduleDay(today); };
+    $('#grid-history').onclick = () => { stopPlaying(); setScheduleDay('2017-07-12'); };
+    $('#harbor-today').onclick = () => { stopPlaying(); setScheduleDay(today); };
+    $('#harbor-history').onclick = () => { stopPlaying(); setScheduleDay('2017-07-12'); };
+    $('#harbor-example').onclick = () => { stopPlaying(); setScheduleDay('2010-07-29'); };
     $('#registry-search').oninput = () => {
       clearTimeout(registryTimer);
       ++registrySeq; // invalidate an in-flight result as soon as the search changes
       registryTimer = setTimeout(renderRegistry, 150);
     };
     wireTabs();
-    $('#grid-prev').onclick = () => { const { y, m } = monthRange(state.month); state.month = m === 1 ? `${y - 1}-12` : `${y}-${pad(m - 1)}`; renderGrid(); };
-    $('#grid-next').onclick = () => { const { y, m } = monthRange(state.month); state.month = m === 12 ? `${y + 1}-01` : `${y}-${pad(m + 1)}`; renderGrid(); };
-    $('#grid-month').onchange = (e) => { if (isMonth(e.target.value)) { state.month = e.target.value; renderGrid(); } else e.target.value = state.month; };
+    $$('[name="schedule-layout"]').forEach((radio) => { radio.onchange = () => { if (radio.checked) showView(radio.value); }; });
+    $('#grid-prev').onclick = () => { const { y, m } = monthRange(state.month); stopPlaying(); setScheduleMonth(m === 1 ? `${y - 1}-12` : `${y}-${pad(m - 1)}`); };
+    $('#grid-next').onclick = () => { const { y, m } = monthRange(state.month); stopPlaying(); setScheduleMonth(m === 12 ? `${y + 1}-01` : `${y}-${pad(m + 1)}`); };
+    $('#grid-month').onchange = (e) => { if (isMonth(e.target.value)) { stopPlaying(); setScheduleMonth(e.target.value); } else e.target.value = state.month; };
     $('#book-kind').onchange = kindChanged;
     $('#book-vessel').oninput = vesselTyped;
     $('#book-vessel').onchange = vesselChosen;
@@ -982,7 +1072,7 @@
     });
     $('#harbor-prev').onclick = () => { stopPlaying(); stepDay(-1); };
     $('#harbor-next').onclick = () => { stopPlaying(); stepDay(1); };
-    $('#harbor-day').onchange = (e) => { if (e.target.value) { stopPlaying(); state.day = e.target.value; renderHarbor(); } };
+    $('#harbor-day').onchange = (e) => { if (window.Audit.isDate(e.target.value)) { stopPlaying(); setScheduleDay(e.target.value); } else e.target.value = state.day; };
     $('#harbor-play').onclick = togglePlay;
     $('#issues-kind').onchange = renderIssues;
     $('#detail-close').onclick = closeDetail;
