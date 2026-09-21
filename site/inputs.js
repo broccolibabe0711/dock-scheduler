@@ -60,7 +60,7 @@
     status.setAttribute('role', 'status');
     menu.setAttribute('aria-describedby', status.id);
     wrapper.append(menu, status);
-    let items = [], sequence = 0, timer, usingTemplate = false;
+    let items = [], sequence = 0, timer, usingTemplate = false, choosing = false;
     const placeholder = () => new Option(template ? 'Add a template…' : 'Choose a suggestion…', '');
     async function refresh() {
       clearTimeout(timer);
@@ -88,26 +88,32 @@
       }
     }
     menu.addEventListener('input', (ev) => ev.stopPropagation());
+    menu.addEventListener('blur', () => { menu.value = ''; });
     menu.addEventListener('change', (ev) => {
       ev.stopPropagation();
       if (menu.value === '' || input.disabled) return;
       const item = items[Number(menu.value)];
       if (!item) return;
+      ++sequence;
+      clearTimeout(timer);
       if (onChoose) onChoose(item);
       input.value = template ? insertTemplate(input.value, item.value, input.tagName === 'TEXTAREA') : item.value;
       usingTemplate ||= template;
-      menu.value = '';
+      choosing = true;
       input.dispatchEvent(new Event('input', { bubbles: true }));
       input.dispatchEvent(new Event('change', { bubbles: true }));
-      input.focus();
+      choosing = false;
       if (template) {
+        menu.value = '';
+        input.focus();
         const prompt = /\[[^\]]+\]/.exec(input.value);
         if (prompt) input.setSelectionRange(prompt.index, prompt.index + prompt[0].length);
       }
     });
     input.addEventListener('input', () => {
       input.setCustomValidity(usingTemplate && hasPrompts(input.value) ? 'Replace the bracketed template prompts with your details, or remove them.' : '');
-      if (!searchable) return;
+      // Keep native menus focused and stable while arrow keys move through choices.
+      if (!searchable || choosing) return;
       ++sequence; // Ignore a slow response as soon as the query changes.
       clearTimeout(timer);
       menu.disabled = true;
