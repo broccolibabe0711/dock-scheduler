@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dock Scheduler</title>
 <meta name="description" content="Berth reservations with explained fit and capacity checks, reviewed measurements, and a harbor view of 23 years of history.">
-  <link rel="stylesheet" href="style.css?v=20260920-workspace2">
+  <link rel="stylesheet" href="style.css?v=20260920-inputs1">
 </head>
 <body>
 <header class="top">
@@ -87,8 +87,7 @@
           </select>
         </label>
         <label class="vessel-only">Vessel
-          <input list="vessel-options" id="book-vessel" placeholder="type a name…" required>
-          <datalist id="vessel-options"></datalist>
+          <input id="book-vessel" placeholder="Choose below or type a name…" required>
         </label>
         <a class="vessel-only" href="#registry">Browse vessel registries</a>
         <label class="non-vessel-only" hidden>Title
@@ -212,8 +211,9 @@
   <a href="https://github.com/broccolibabe0711/dock-scheduler">Source and decisions on GitHub</a>
 </footer>
 
-<script src="harbor.js?v=20260920-workspace2"></script>
-<script src="audit.js?v=20260920-workspace2"></script>
-<script src="app.js?v=20260920-workspace2"></script>
+<script src="harbor.js?v=20260920-inputs1"></script>
+<script src="inputs.js?v=20260920-inputs1"></script>
+<script src="audit.js?v=20260920-inputs1"></script>
+<script src="app.js?v=20260920-inputs1"></script>
 </body>
 </html>

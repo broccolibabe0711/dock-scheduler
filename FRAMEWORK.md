@@ -3,7 +3,7 @@
 **Deployment update, 19 September 2026:** The requested operable website is at
 <https://dock-scheduler-henna.vercel.app>. Vercel runs FastAPI with persistent Neon
 PostgreSQL; local development keeps SQLite. The deployment work and verification
-are documented in `docs/DEPLOY_VERCEL.md` and decisions 0008–0010. The test suite
+are documented in `docs/DEPLOY_VERCEL.md` and decisions 0008–0011. The test suite
 includes API and storage workflows on both databases. The older Pages sections below describe
 the historical read-only demo, which remains available separately.
 
@@ -17,6 +17,8 @@ the historical read-only demo, which remains available separately.
 ---
 
 ## Implementation status (20 September 2026)
+
+All typed fields now have native suggestion menus, with searchable names, date shortcuts, contextual titles, and editable note/reason templates. Measurement options use the selected vessel’s own record. See decision 0011.
 
 | Phase | Planned | What happened |
 |---|---|---|

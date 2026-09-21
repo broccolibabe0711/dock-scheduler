@@ -215,5 +215,17 @@ body.wide-schedule { max-width: 1700px; }
   .audit-finding { padding: 13px; }
 }
 
+/* Native companion menus keep custom typing and mobile selection available. */
+.input-assist { display: flex; flex-direction: column; gap: 4px; min-width: 0; max-width: 100%; }
+.input-assist > label { margin: 0; }
+.input-assist input, .input-assist textarea, .input-assist select { width: 100%; min-width: 0; }
+.input-choices { color: var(--accent); font-size: .8rem; min-height: 36px; text-overflow: ellipsis; }
+.choice-status { color: var(--muted); font-size: .72rem; line-height: 1.4; max-width: 32ch; }
+.choice-status:empty { display: none; }
+.row > .input-assist { flex: 1 1 180px; }
+.row > .input-assist.wide { flex-basis: 320px; }
+.toolbar > .input-assist { width: 210px; }
+.detail-card form > .input-assist { margin: 12px 0; }
+@media(max-width: 600px) { .audit-fields > .input-assist:first-child { grid-column: 1 / -1; } }
 /* the hidden attribute must win over every display rule above */
 [hidden] { display: none !important; }

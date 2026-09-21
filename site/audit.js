@@ -130,9 +130,24 @@
     query.oninput = changed;
     for (const node of [berth, type, from, to]) node.onchange = changed;
     remember.onchange = savePreferences;
-    clear.onclick = () => { query.value = berth.value = type.value = from.value = to.value = ''; changed(); };
+    clear.onclick = () => {
+      query.value = berth.value = type.value = from.value = to.value = '';
+      query.dispatchEvent(new Event('input', { bubbles: true }));
+    };
     prev.onclick = () => { page--; render(); };
     next.onclick = () => { page++; render(); };
+    const { attach, choice, matching } = window.InputChoices;
+    const names = [...new Set(rows.flatMap((r) => r.names))].sort((a, b) => a.localeCompare(b)).map((s) => choice(s));
+    attach(query, { label: 'Audit vessel or event', searchable: true, options: (q) => matching(names, q) });
+    const first = rows.reduce((day, r) => day < r.start ? day : r.start, rows[0]?.start || '');
+    const last = rows.reduce((day, r) => day > r.end ? day : r.end, rows[0]?.end || '');
+    for (const [input, label, other] of [[from, 'Audit From', to], [to, 'Audit To', from]]) {
+      attach(input, { label, options: () => [choice('', 'Any date · clear this limit'),
+        ...(other.value ? [choice(other.value, `Same as ${input === from ? 'To' : 'From'} · ${other.value}`)] : []),
+        choice(first, `First finding · ${first}`), choice(last, `Last finding · ${last}`),
+        choice('2017-07-11', 'Closure overlap begins · 2017-07-11'), choice('2017-07-15', 'Closure overlap ends · 2017-07-15'),
+        choice('2010-07-29', 'Fit example · 2010-07-29')], help: 'Choose a date or use the calendar.' });
+    }
     render();
   }
   const api = { create, filterRows, counts, isDate, validFilters };

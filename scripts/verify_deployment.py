@@ -21,7 +21,7 @@ def verify(base_url, write_smoke=False):
         if '.vercel.app' in base_url:
             assert meta['storage'] == 'postgres', meta
         checks.append('Live API and persistent storage')
-        for path, marker in [('/', 'schedule-workspace'), ('/guide.html', 'Rules and assumptions'), ('/app.js', 'checkVesselChange'), ('/audit.js', 'filterRows')]:
+        for path, marker in [('/', 'inputs.js?v=20260920-inputs1'), ('/guide.html', 'Rules and assumptions'), ('/app.js', 'setupInputChoices'), ('/audit.js', 'filterRows'), ('/inputs.js', 'insertTemplate')]:
             r = client.get(path)
             r.raise_for_status()
             assert marker in r.text, (path, marker)

@@ -91,3 +91,13 @@ Only 33 vessel stays have a known vessel length: 98.3% are unknown. Nine reserva
 ## Links
 
 [Return to Harbor](index.html#harbor) · [Live app](https://dock-scheduler-henna.vercel.app/) · [Source and decisions](https://github.com/broccolibabe0711/dock-scheduler) · [API documentation](https://dock-scheduler-henna.vercel.app/docs) · [Acceptance checklist](acceptance.html)
+
+## Input suggestions
+
+Every field that accepts typing also has a suggestion menu. You can browse names before typing, or type part of a vessel/event name to narrow the list. Booking and Vessel registries use current vessel records; Audit uses the original sample’s finding names. You can still enter custom names and text.
+
+Date and month fields offer shortcuts alongside their calendars. The To menu can use the From date, a seven-day stay or a thirty-day stay; these counts include both arrival and departure. The shortcuts update when you open the menu. Audit also offers the first/last finding dates and closure examples.
+
+Titles offer event or closure examples. Notes and exception/review reasons offer templates that append to your existing text. Replace every bracketed prompt before saving. A template does not approve an exception, and choosing any suggestion does not save a booking.
+
+Length menus offer only the selected vessel’s recorded measurement or unknown. Enter a different verified measurement directly and preview its impact before saving. A newly typed vessel name does not inherit the previous vessel’s length.

@@ -169,7 +169,7 @@
   // ---------------------------------------------------------------- state and navigation
   const state = {
     berths: [], month: null, day: null, timer: null, harbor: null, loadsByMonth: new Map(),
-    vessel: null, vesselHits: [], vesselSeq: 0, view: 'harbor', scheduleView: 'harbor',
+    vessel: null, vesselHits: [], vesselName: '', view: 'harbor', scheduleView: 'harbor',
   };
 
   const currentView = () => state.view;
@@ -415,28 +415,22 @@
     $('#book-vessel').required = kind === 'vessel';
   }
 
-  let vesselSearchTimer = null;
   function vesselTyped() {
-    const q = $('#book-vessel').value.trim();
-    clearTimeout(vesselSearchTimer);
-    const seq = ++state.vesselSeq;
-    vesselSearchTimer = setTimeout(async () => {
-      let hits = [];
-      try { hits = q ? await Data.vessels(q) : []; }
-      catch (err) {
-        if (seq === state.vesselSeq) { $('#vessel-facts').hidden = false; $('#vessel-summary').textContent = `Could not reach the vessel registry: ${errorText(err)}`; }
-        return; // keep the previous hits; nothing is concluded from a failed search
-      }
-      if (seq !== state.vesselSeq) return;
-      state.vesselHits = hits;
-      $('#vessel-options').replaceChildren(...hits.map((v) => el('option', { value: v.name, text: v.length_ft ? fmtFt(v.length_ft) : 'length unknown' })));
-      vesselChosen();
-    }, 150);
+    const key = nameKey($('#book-vessel').value);
+    if (state.vesselName !== key) {
+      state.vessel = null;
+      $('#vessel-length').value = ''; // Never carry another vessel's measurement into a new name.
+    }
+    state.vesselName = key;
+    $('#vessel-facts').hidden = !$('#book-vessel').value.trim();
+    if (!state.vessel) $('#vessel-summary').textContent = 'Looking up this vessel…';
   }
 
   function vesselChosen() {
     const typed = $('#book-vessel').value.trim();
     const key = nameKey(typed);
+    const previous = state.vessel;
+    state.vesselName = key;
     state.vessel = key ? state.vesselHits.find((v) => nameKey(v.name) === key) || null : null;
     const facts = $('#vessel-facts');
     facts.hidden = !typed;
@@ -446,7 +440,7 @@
         ? `${state.vessel.name}: ${fmtFt(state.vessel.length_ft)}${state.vessel.operator ? `, ${state.vessel.operator}` : ''}${state.vessel.rafts_ok ? ', will raft alongside' : ''}`
         : `${state.vessel.name}: length not on file. The referee will answer UNKNOWN until it is entered.`;
       $('#vessel-length-wrap').hidden = false;
-      $('#vessel-length').value = state.vessel.length_ft ?? '';
+      if (previous?.id !== state.vessel.id) $('#vessel-length').value = state.vessel.length_ft ?? '';
     } else {
       $('#vessel-summary').textContent = `"${typed}" is not in the registry. Pick a name from the list, or enter its length and press "Review / save length" to add it.`;
       $('#vessel-length-wrap').hidden = false;
@@ -525,7 +519,7 @@
     ++bookSeq;
     $('#book-result').replaceChildren();
     $('#book-suggestions').replaceChildren();
-    $('#book-override').value = '';
+    $('#book-override').value = ''; $('#book-override').setCustomValidity('');
     $('#override-wrap').hidden = true;
   }
 
@@ -558,7 +552,7 @@
       forgetLoads();
       refreshSummary();
       renderResult(out.check, `Saved as reservation #${out.reservation.id} (${out.reservation.start}..${out.reservation.end}).`);
-      $('#book-override').value = '';
+      $('#book-override').value = ''; $('#book-override').setCustomValidity('');
       $('#book-result').append(el('p', {}, el('button', { type: 'button', text: 'See it in the grid', onclick: () => { setScheduleDay(out.reservation.start); showView('grid'); } })));
     } catch (err) { showError(err); }
     finally { thaw(); }
@@ -686,7 +680,7 @@
     $('#measurement-length').value = proposed ?? '';
     $('#measurement-length').disabled = false;
     $('#measurement-preview').disabled = false;
-    $('#measurement-reason').value = '';
+    $('#measurement-reason').value = ''; $('#measurement-reason').setCustomValidity('');
     $('#measurement-reason-wrap').hidden = true;
     $('#measurement-reason').required = false;
     $('#measurement-save').disabled = true;
@@ -756,9 +750,10 @@
         invalidateBooking();
         state.vesselHits = [saved];
         vesselChosen();
+        $('#vessel-length').value = saved.length_ft ?? '';
         $('#book-result').replaceChildren(el('p', { text: 'Vessel measurement updated. Check the proposed booking again before saving.' }));
         $('#book-suggestions').replaceChildren();
-        $('#book-override').value = '';
+        $('#book-override').value = ''; $('#book-override').setCustomValidity('');
         $('#override-wrap').hidden = true;
       }
       if (currentView() !== 'book') showView(currentView());
@@ -957,8 +952,8 @@
     $('#edit-status').value = r.status;
     $('#edit-start').value = r.start;
     $('#edit-end').value = r.end;
-    $('#edit-notes').value = r.notes;
-    $('#edit-override').value = '';
+    $('#edit-notes').value = r.notes; $('#edit-notes').setCustomValidity('');
+    $('#edit-override').value = ''; $('#edit-override').setCustomValidity('');
     $('#edit-override-wrap').hidden = true;
     $('#edit-result').replaceChildren();
     $('#edit-form').hidden = false;
@@ -1013,6 +1008,44 @@
   }
 
   // ---------------------------------------------------------------- init
+  function setupInputChoices(today) {
+    const { attach, choice, dateChoices, lengthChoices } = window.InputChoices;
+    const vesselOptions = async (query) => (await Data.vessels(query, 1000)).map((v) => ({
+      ...choice(v.name, `${v.name} · ${v.length_ft == null ? 'length unknown' : `${v.length_ft} ft`}`), vessel: v,
+    }));
+    attach($('#book-vessel'), { label: 'Vessel', searchable: true, options: vesselOptions,
+      onLoad: (items) => { state.vesselHits = items.map((i) => i.vessel); vesselChosen(); },
+      onChoose: (item) => { state.vesselHits = [item.vessel]; } });
+    attach($('#registry-search'), { label: 'Registry vessel name', searchable: true, options: vesselOptions });
+    attach($('#book-title'), { label: 'Event or closure title', options: () =>
+      ($('#book-kind').value === 'closure'
+        ? ['Utility work', 'Dock maintenance', 'Safety inspection', 'Weather closure']
+        : ['Community sail day', 'Research visit', 'School visit', 'Harbor open day']).map((s) => choice(s)) });
+    for (const [id, label] of [['grid-month', 'Month'], ['harbor-day', 'Harbor day'], ['book-start', 'Booking From'],
+      ['book-end', 'Booking To'], ['edit-start', 'Reservation From'], ['edit-end', 'Reservation To']]) {
+      attach($(`#${id}`), { label, options: () => dateChoices({ today, selected: state.day, month: id === 'grid-month',
+        start: id.endsWith('-end') ? $(`#${id.replace('-end', '-start')}`).value : null }),
+      help: 'Choose a shortcut or use the calendar.' });
+    }
+    const notes = ['Arrival contact: [name and contact details].', 'Arrival plan: [time and docking instructions].',
+      'Services requested: [power, water or other needs].', 'Departure plan: [time and arrangements].'];
+    const reasons = ['Approval reference: [name, date and reference]. Exception and conditions: [details].',
+      'Missing evidence: [measurement or source needed]. Interim plan: [details and responsible person].',
+      'Conflict resolution: [arrangement, responsible person and follow-up date].'];
+    for (const [id, label, templates] of [['book-notes', 'Booking notes', notes], ['edit-notes', 'Reservation notes', notes],
+      ['book-override', 'Booking override reason', reasons], ['edit-override', 'Reservation exception reason', reasons],
+      ['measurement-reason', 'Measurement review reason', [
+        'Measurement source: [document or measurement, date and verifier]. Affected booking plan: [details].',
+        'Correction: [why the prior measurement was wrong]. Resolution owner and next steps: [details].']]]) {
+      attach($(`#${id}`), { label, template: true, options: () => templates.map((s) => choice(s)),
+        help: 'Adds to your text. Replace every [prompt] before saving.' });
+    }
+    attach($('#vessel-length'), { label: 'Vessel length', options: () => lengthChoices(state.vessel),
+      help: 'Use this vessel’s recorded length, or enter a verified measurement in feet.' });
+    attach($('#measurement-length'), { label: 'Reviewed vessel length', options: () => lengthChoices(measurementContext?.vessel),
+      help: 'Use the recorded value or enter a verified correction. Preview before saving.' });
+  }
+
   function wireTabs() {
     const tabs = $$('.tabs button');
     tabs.forEach((b) => b.addEventListener('click', () => showView(b.id === 'tab-schedule' ? state.scheduleView : b.dataset.view)));
@@ -1081,7 +1114,7 @@
     $('#edit-form').onsubmit = saveEdit;
     $('#edit-form').oninput = (ev) => {
       ++editSeq;
-      if (ev.target.id !== 'edit-override') { $('#edit-override').value = ''; $('#edit-result').replaceChildren(); $('#edit-override-wrap').hidden = true; }
+      if (ev.target.id !== 'edit-override') { $('#edit-override').value = ''; $('#edit-override').setCustomValidity(''); $('#edit-result').replaceChildren(); $('#edit-override-wrap').hidden = true; }
     };
     $('#edit-discard').onclick = () => { ++editSeq; if (detailCurrent) showDetail(detailCurrent); };
     $('#detail').addEventListener('close', () => { ++detailSeq; ++editSeq; });
@@ -1101,6 +1134,7 @@
       $$('.static-only').forEach((n) => { n.hidden = false; });
       ['#book-check', '#book-suggest', '#book-save', '#vessel-length-save'].forEach((s) => { $(s).disabled = true; });
     }
+    setupInputChoices(today);
     kindChanged();
     showView(VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'harbor');
   }

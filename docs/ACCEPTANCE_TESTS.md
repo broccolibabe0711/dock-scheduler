@@ -175,3 +175,20 @@ Keyboard access, focus, reflow, contrast and understandable input errors are gro
 | A10 | Switch Harbor → Grid → Side by side; leave for Audit and return to Schedule. | Date and selected layout stay consistent. The old #grid/#harbor links and new #split link select the intended layout. |
 | A11 | Use arrow keys in the layout radio group and the grid’s date header. | Layout changes and selected dates work without a mouse. There is one date-header tab stop and one berth-day cell tab stop. |
 | A12 | Try Audit and Side by side at phone width. | Filter fields remain usable; paired views stack, with wide grids/maps scrolling within their own panels. The whole page has no horizontal overflow. |
+
+## 11. Dropdowns and suggested input
+
+| ID | Do this | Passing result |
+|---|---|---|
+| I01 | Open Book and choose R/V Clear Tern from Vessel suggestions without typing. Then type Amber to narrow the list. | Choices use registry names and show recorded lengths or unknown. The exact chosen vessel is used for Check. |
+| I02 | Choose Clear Tern and North Pier Face; press Check. | The 120 ft vessel still produces the 45 ft fit failure. Dropdowns do not bypass rules or save automatically. |
+| I03 | In Vessel registries choose a name from its suggestion menu. In Audit choose OSV Amber Reef. | Each search updates immediately; Audit offers only historical finding names. Custom partial searches and zero results still work. |
+| I04 | Change Book From to 27 February 2028, then open To suggestions and choose the seven-day stay. | To becomes 4 March 2028. Same as From gives a one-day stay. Both calendars and custom dates remain usable. |
+| I05 | Choose date/month shortcuts in Side by side. | Grid and Harbor remain synchronized. Audit date menus can clear either limit and still reject reversed ranges. |
+| I06 | Switch Kind between Event and Closure, then open Title suggestions. | Relevant title examples appear; a custom title is accepted. |
+| I07 | Enter an existing note and select an arrival template. | Existing text remains; the prompt is appended and selected for editing. Unfinished bracketed prompts block Save until filled or removed. |
+| I08 | Use an override template after a blocking Check. Then change a date. | The template needs real details. Changing a booking field clears the old override, including its template validation message. |
+| I09 | Select a known vessel, then type a new name. Open its length menu. | The new name has no inherited length. The menu offers unknown; known vessels offer only their own recorded length. |
+| I10 | Open a measurement review and an existing reservation editor. Inspect all date, note, length and reason fields. | Every typed field has a labeled menu; choices trigger the usual preview/check requirements. Close without saving when testing production. |
+| I11 | Tab to a suggestion menu and use arrow keys/Enter. Repeat Book and Audit at phone width. | Menus work with keyboard and native mobile controls; fields and long option labels do not widen the page. |
+| I12 | Rapidly change a vessel search. If possible, interrupt its request in a local test. | Late results never replace the latest query; failed suggestions explain the problem and leave typing available. |

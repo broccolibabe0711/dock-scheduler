@@ -8,6 +8,35 @@ const rows = [
   { category: 'unknown_fit', severity: 'unknown', berth_id: 6, names: ['OSV Amber Reef'], start: '2017-07-09', end: '2017-07-18' },
   { category: 'unverifiable', severity: 'unknown', berth_id: 6, names: ['OSV Amber Reef', 'M/V Other'], start: '2017-07-12', end: '2017-07-12' },
 ];
+const { matching, insertTemplate, hasPrompts, dateChoices, lengthChoices } = require('../site/inputs.js');
+
+test('suggestion searches match slash variants and never alter their source', () => {
+  const source = [{ value: 'OSV Amber Reef', label: 'OSV Amber Reef · length unknown' },
+    { value: 'R/V Clear Tern', label: 'R/V Clear Tern · 120 ft' }];
+  const before = JSON.stringify(source);
+  assert.deepEqual(matching(source, ' OS/V AMBER '), [source[0]]);
+  assert.deepEqual(matching(source, 'no such vessel'), []);
+  assert.equal(JSON.stringify(source), before);
+});
+test('note templates preserve existing text and flag unfinished prompts', () => {
+  assert.equal(insertTemplate('Existing note.', 'Arrival: [time].'), 'Existing note. Arrival: [time].');
+  assert.equal(insertTemplate('Existing note.', 'Arrival: [time].', true), 'Existing note.\nArrival: [time].');
+  assert.equal(hasPrompts('Arrival: [time].'), true);
+  assert.equal(hasPrompts('Arrival: 09:00.'), false);
+});
+test('date shortcuts count inclusive stays across leap days and years', () => {
+  const leap = dateChoices({ today: '2028-02-27', start: '2028-02-27' });
+  assert.equal(leap.find((c) => c.label.startsWith('7-day')).value, '2028-03-04');
+  const year = dateChoices({ start: '2026-12-31' });
+  assert.equal(year.find((c) => c.label.startsWith('30-day')).value, '2027-01-29');
+  assert.equal(dateChoices({ optional: true })[0].value, '');
+  assert.ok(dateChoices({ today: '2026-09-20', month: true }).every((c) => /^\d{4}-\d{2}$/.test(c.value)));
+});
+test('measurement suggestions contain only the selected vessel’s recorded value or unknown', () => {
+  assert.deepEqual(lengthChoices(null).map((c) => c.value), ['']);
+  assert.deepEqual(lengthChoices({ length_ft: null }).map((c) => c.value), ['']);
+  assert.deepEqual(lengthChoices({ length_ft: 120 }).map((c) => c.value), ['', '120']);
+});
 
 test('combined name, berth, date and type filters include the final occupied day', () => {
   assert.deepEqual(filterRows(rows, { query: ' OS/V AMBER ', berth: '6', from: '2017-07-15', to: '2017-07-15', type: 'conflict' }), [rows[1]]);
