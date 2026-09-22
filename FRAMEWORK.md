@@ -12,6 +12,8 @@ the historical read-only demo, which remains available separately.
 **Budget:** about 6 hours of Baron's own time, working with Claude Code as a pair
 **Status of this document:** the plan, written before any code. The build followed it; the section right below records where reality differed. Every later decision is in `docs/decisions/`.
 
+**Submission, 22 September 2026:** `docs/SUBMISSION.md` provides the current reviewer guide, explicit scope and AI assistance disclosure; `docs/SUBMISSION_VERIFICATION.md` records final checks. The original proposals below are design history, not the submission script.
+
 **Current product documentation:** `docs/ENGINEERING_WALKTHROUGH.md` explains the implemented website and `docs/ACCEPTANCE_TESTS.md` provides reproducible acceptance tasks. The original proposals below are retained as design history.
 
 ---

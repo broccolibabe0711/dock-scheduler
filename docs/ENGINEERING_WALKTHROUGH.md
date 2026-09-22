@@ -1,6 +1,6 @@
 # Dock Scheduler: the website and its engineering
 
-Prepared for Baron Zhang · 19 September 2026 · Updated for the reviewed-measurement release
+Prepared for Baron Zhang · Updated 22 September 2026 for submission
 
 [Use the live website](https://dock-scheduler-henna.vercel.app/) · [Explore the source](https://github.com/broccolibabe0711/dock-scheduler) · [Run the acceptance guide](ACCEPTANCE_TESTS.md)
 

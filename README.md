@@ -15,6 +15,8 @@ or **Sample history** to explore July 2017.
 
 Built as a take-home for Columbia Software Solutions.
 
+**Reviewing the submission?** Start with the [three-minute reviewer guide](https://dock-scheduler-henna.vercel.app/submission.html), [verification record](docs/SUBMISSION_VERIFICATION.md), and [AI assistance and scope disclosure](docs/SUBMISSION.md#scope-and-ai-assistance).
+
 **Understand and test it:** [Website guide and assumptions](https://dock-scheduler-henna.vercel.app/guide.html) · [Engineering walkthrough](docs/ENGINEERING_WALKTHROUGH.md) · [Acceptance tests and rehearsal questions](docs/ACCEPTANCE_TESTS.md).
 
 ## What the legacy data says
@@ -72,6 +74,7 @@ Regenerate the audit report and the static snapshot:
 - **Vessel registries**: search dimensions, inspect notes, open the source workbook, and preview a length correction before saving. Blocking impacts require a reason tied to the current preview. The measurement, its before/after findings and the reason are saved together.
 - **Edit reservations** from a Grid bar or Harbor hull: change dates, berth, status or notes. The API rechecks changes to occupancy. A previous override does not authorize a new conflicting edit.
 - **Operational notes and provenance**: imported annotations appear under Grid and Harbor. Details explain when a historical span was inferred from cell colour or repeated names.
+- **Suggested input**: all 19 typed fields have native menus for names, dates, titles, notes and recorded measurements. Name lists narrow as you type; templates preserve existing text and require their prompts to be filled before saving.
 
 ## How it is built
 

@@ -125,3 +125,4 @@ def build(source_name, stem, title):
 if __name__ == '__main__':
     build('USER_GUIDE.md', 'guide', 'Guide and assumptions')
     build('ACCEPTANCE_TESTS.md', 'acceptance', 'Acceptance tests')
+    build('SUBMISSION.md', 'submission', 'Submission guide')
